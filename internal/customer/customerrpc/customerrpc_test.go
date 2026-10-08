@@ -12,6 +12,7 @@ import (
 	"connectrpc.com/validate"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	customerv1 "github.com/telemac/connectrpc-v2-poc/gen/go/customer/v1"
 	"github.com/telemac/connectrpc-v2-poc/gen/go/customer/v1/customerv1connect"
@@ -47,24 +48,41 @@ func TestCreatedCustomerCanBeFetched(t *testing.T) {
 	assert.Equal("ada@example.com", got.GetCustomer().GetEmail())
 }
 
-func TestUpdatedCustomerIsReturnedAndStored(t *testing.T) {
-	assert := assert.New(t)
-	client := newClient(t)
-	created, err := client.CreateCustomer(t.Context(), &customerv1.CreateCustomerRequest{Customer: &customerv1.Customer{Name: "Ada", Email: "ada@example.com"}})
-	assert.NoError(err)
-	id := created.GetCustomer().GetId()
+func TestUpdateCustomerAppliesMask(t *testing.T) {
+	tests := []struct {
+		name      string
+		mask      []string // nil means omitted
+		body      *customerv1.Customer
+		wantName  string
+		wantEmail string
+	}{
+		{"mask limits the change", []string{"email"}, &customerv1.Customer{Name: "Ignored", Email: "ada@lovelace.org"}, "Ada", "ada@lovelace.org"},
+		{"omitted mask uses populated fields", nil, &customerv1.Customer{Name: "Ada Lovelace"}, "Ada Lovelace", "ada@example.com"},
+		{"wildcard replaces everything", []string{"*"}, &customerv1.Customer{Name: "Grace", Email: "grace@example.com"}, "Grace", "grace@example.com"},
+		{"output only id is ignored", []string{"id", "name"}, &customerv1.Customer{Name: "Ada Lovelace"}, "Ada Lovelace", "ada@example.com"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			client := newClient(t)
+			created, err := client.CreateCustomer(t.Context(), &customerv1.CreateCustomerRequest{Customer: &customerv1.Customer{Name: "Ada", Email: "ada@example.com"}})
+			require.NoError(t, err)
+			id := created.GetCustomer().GetId()
 
-	updated, err := client.UpdateCustomer(t.Context(), &customerv1.UpdateCustomerRequest{
-		Id:       id,
-		Customer: &customerv1.Customer{Id: id, Name: "Ada Lovelace", Email: "ada@lovelace.org"},
-	})
-	assert.NoError(err)
-	assert.Equal(id, updated.GetCustomer().GetId())
+			req := &customerv1.UpdateCustomerRequest{Id: id, Customer: tt.body}
+			if tt.mask != nil {
+				req.UpdateMask = &fieldmaskpb.FieldMask{Paths: tt.mask}
+			}
+			updated, err := client.UpdateCustomer(t.Context(), req)
+			assert.NoError(err)
+			assert.Equal(id, updated.GetCustomer().GetId())
 
-	got, err := client.GetCustomer(t.Context(), &customerv1.GetCustomerRequest{Id: id})
-	assert.NoError(err)
-	assert.Equal("Ada Lovelace", got.GetCustomer().GetName())
-	assert.Equal("ada@lovelace.org", got.GetCustomer().GetEmail())
+			got, err := client.GetCustomer(t.Context(), &customerv1.GetCustomerRequest{Id: id})
+			assert.NoError(err)
+			assert.Equal(tt.wantName, got.GetCustomer().GetName())
+			assert.Equal(tt.wantEmail, got.GetCustomer().GetEmail())
+		})
+	}
 }
 
 func TestDeletedCustomerIsGone(t *testing.T) {
@@ -227,6 +245,50 @@ func TestErrorsMapToConnectCodes(t *testing.T) {
 			name: "update requires the customer",
 			call: func(c customerv1connect.CustomerServiceClient) error {
 				_, err := c.UpdateCustomer(t.Context(), &customerv1.UpdateCustomerRequest{Id: uuid.NewV7().String()})
+				return err
+			},
+			want: connect.CodeInvalidArgument,
+		},
+		{
+			name: "create requires the name",
+			call: func(c customerv1connect.CustomerServiceClient) error {
+				_, err := c.CreateCustomer(t.Context(), &customerv1.CreateCustomerRequest{Customer: &customerv1.Customer{Email: "ada@example.com"}})
+				return err
+			},
+			want: connect.CodeInvalidArgument,
+		},
+		{
+			name: "update rejects an unknown mask path",
+			call: func(c customerv1connect.CustomerServiceClient) error {
+				_, err := c.UpdateCustomer(t.Context(), &customerv1.UpdateCustomerRequest{
+					Id:         uuid.NewV7().String(),
+					Customer:   &customerv1.Customer{Name: "Ada"},
+					UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"phone"}},
+				})
+				return err
+			},
+			want: connect.CodeInvalidArgument,
+		},
+		{
+			name: "update requires fields named in the mask",
+			call: func(c customerv1connect.CustomerServiceClient) error {
+				_, err := c.UpdateCustomer(t.Context(), &customerv1.UpdateCustomerRequest{
+					Id:         uuid.NewV7().String(),
+					Customer:   &customerv1.Customer{Email: "ada@example.com"},
+					UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"name"}},
+				})
+				return err
+			},
+			want: connect.CodeInvalidArgument,
+		},
+		{
+			name: "wildcard update requires every field",
+			call: func(c customerv1connect.CustomerServiceClient) error {
+				_, err := c.UpdateCustomer(t.Context(), &customerv1.UpdateCustomerRequest{
+					Id:         uuid.NewV7().String(),
+					Customer:   &customerv1.Customer{Email: "ada@example.com"},
+					UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"*"}},
+				})
 				return err
 			},
 			want: connect.CodeInvalidArgument,

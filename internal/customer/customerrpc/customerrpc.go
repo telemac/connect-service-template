@@ -107,11 +107,39 @@ func (h *Handler) UpdateCustomer(ctx context.Context, req *customerv1.UpdateCust
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, "id must be a UUID")
 	}
-	c, err := h.store.Update(ctx, id, req.GetCustomer().GetName(), req.GetCustomer().GetEmail())
+	c, err := h.store.Update(ctx, id, toChange(req.GetCustomer(), req.GetUpdateMask().GetPaths()))
 	if err != nil {
 		return nil, h.toConnectError(ctx, err)
 	}
 	return &customerv1.UpdateCustomerResponse{Customer: toContract(c)}, nil
+}
+
+// toChange applies AIP-134 mask semantics. Paths were already restricted to
+// known ones by the contract.
+func toChange(c *customerv1.Customer, paths []string) customer.Change {
+	var change customer.Change
+	if len(paths) == 0 {
+		// An omitted mask means every populated field.
+		if c.GetName() != "" {
+			change.Name = new(c.GetName())
+		}
+		if c.GetEmail() != "" {
+			change.Email = new(c.GetEmail())
+		}
+		return change
+	}
+	for _, path := range paths {
+		switch path {
+		case "*":
+			change.Name, change.Email = new(c.GetName()), new(c.GetEmail())
+		case "name":
+			change.Name = new(c.GetName())
+		case "email":
+			change.Email = new(c.GetEmail())
+		}
+		// "id" is output only: ignored in masks (AIP-203).
+	}
+	return change
 }
 
 func (h *Handler) DeleteCustomer(ctx context.Context, req *customerv1.DeleteCustomerRequest) (*customerv1.DeleteCustomerResponse, error) {

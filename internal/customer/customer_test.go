@@ -44,19 +44,32 @@ func TestStoreReportsUnknownCustomer(t *testing.T) {
 	assert.ErrorIs(err, customer.ErrNotFound)
 }
 
-func TestStoreUpdateReplacesFields(t *testing.T) {
-	assert := assert.New(t)
+func TestStoreUpdateAppliesOnlyChangedFields(t *testing.T) {
 	store := customer.NewStore()
 	created, err := store.Create(t.Context(), "Ada", "ada@example.com")
-	assert.NoError(err)
+	require.NoError(t, err)
 
-	updated, err := store.Update(t.Context(), created.ID, "Ada Lovelace", "ada@lovelace.org")
-	assert.NoError(err)
-	assert.Equal(customer.Customer{ID: created.ID, Name: "Ada Lovelace", Email: "ada@lovelace.org"}, updated)
+	tests := []struct {
+		name   string
+		change customer.Change
+		want   customer.Customer
+	}{
+		{"empty change keeps everything", customer.Change{}, created},
+		{"name only", customer.Change{Name: new("Ada Lovelace")}, customer.Customer{ID: created.ID, Name: "Ada Lovelace", Email: "ada@example.com"}},
+		{"email only", customer.Change{Email: new("ada@lovelace.org")}, customer.Customer{ID: created.ID, Name: "Ada Lovelace", Email: "ada@lovelace.org"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			updated, err := store.Update(t.Context(), created.ID, tt.change)
+			assert.NoError(err)
+			assert.Equal(tt.want, updated)
 
-	got, err := store.Get(t.Context(), created.ID)
-	assert.NoError(err)
-	assert.Equal(updated, got)
+			got, err := store.Get(t.Context(), created.ID)
+			assert.NoError(err)
+			assert.Equal(tt.want, got)
+		})
+	}
 }
 
 func TestStoreUpdateRejectsUnknownOrInvalid(t *testing.T) {
@@ -65,11 +78,15 @@ func TestStoreUpdateRejectsUnknownOrInvalid(t *testing.T) {
 	created, err := store.Create(t.Context(), "Ada", "ada@example.com")
 	assert.NoError(err)
 
-	_, err = store.Update(t.Context(), uuid.NewV7(), "Ada", "ada@example.com")
+	_, err = store.Update(t.Context(), uuid.NewV7(), customer.Change{Name: new("Ada")})
 	assert.ErrorIs(err, customer.ErrNotFound)
 
-	_, err = store.Update(t.Context(), created.ID, " ", "ada@example.com")
+	_, err = store.Update(t.Context(), created.ID, customer.Change{Name: new(" ")})
 	assert.ErrorIs(err, customer.ErrInvalid)
+
+	got, err := store.Get(t.Context(), created.ID)
+	assert.NoError(err)
+	assert.Equal(created, got, "a rejected update must not change the customer")
 }
 
 func TestStoreDeleteRemovesCustomer(t *testing.T) {

@@ -74,19 +74,35 @@ func (s *Store) Get(ctx context.Context, id uuid.UUID) (Customer, error) {
 	return c, nil
 }
 
-// Update replaces the mutable fields of an existing customer.
-func (s *Store) Update(ctx context.Context, id uuid.UUID, name, email string) (Customer, error) {
-	c, err := build(id, name, email)
+// Change lists the fields an update modifies; nil fields keep their value.
+type Change struct {
+	Name  *string
+	Email *string
+}
+
+// Update applies change to an existing customer. Read, merge and write happen
+// under one lock so concurrent partial updates cannot lose each other's
+// fields.
+func (s *Store) Update(ctx context.Context, id uuid.UUID, change Change) (Customer, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, ok := s.byID[id]
+	if !ok {
+		return Customer{}, fmt.Errorf("%w: %s", ErrNotFound, id)
+	}
+	name, email := current.Name, current.Email
+	if change.Name != nil {
+		name = *change.Name
+	}
+	if change.Email != nil {
+		email = *change.Email
+	}
+	updated, err := build(id, name, email)
 	if err != nil {
 		return Customer{}, err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.byID[id]; !ok {
-		return Customer{}, fmt.Errorf("%w: %s", ErrNotFound, id)
-	}
-	s.byID[id] = c
-	return c, nil
+	s.byID[id] = updated
+	return updated, nil
 }
 
 func (s *Store) Delete(ctx context.Context, id uuid.UUID) error {

@@ -5,6 +5,7 @@ package customer.v1;
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
 import "google/api/field_behavior.proto";
+import "google/protobuf/field_mask.proto";
 
 option go_package = "github.com/telemac/connectrpc-v2-poc/gen/go/customer/v1;customerv1";
 
@@ -23,17 +24,17 @@ service CustomerService {
     option (google.api.http) = {get: "/v1/customers/{id}"};
   }
 
-  // ListCustomers pages through customers in creation order.
+  // ListCustomers pages through customers, filtered and sorted.
   rpc ListCustomers(ListCustomersRequest) returns (ListCustomersResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (google.api.http) = {get: "/v1/customers"};
   }
 
-  // UpdateCustomer replaces every mutable field of an existing customer.
+  // UpdateCustomer changes the fields listed in update_mask (AIP-134).
   rpc UpdateCustomer(UpdateCustomerRequest) returns (UpdateCustomerResponse) {
     option idempotency_level = IDEMPOTENT;
     option (google.api.http) = {
-      put: "/v1/customers/{id}"
+      patch: "/v1/customers/{id}"
       body: "customer"
     };
   }
@@ -46,7 +47,9 @@ service CustomerService {
 }
 
 // Customer carries the entity's constraints; requests embed it instead of
-// repeating them.
+// repeating them. Field rules apply when a field is set; whether a REQUIRED
+// field must be set depends on the request (always on create, only when in
+// the update mask on update), so that is enforced by the request messages.
 message Customer {
   // Assigned by the server; ignored on create.
   string id = 1 [
@@ -54,14 +57,30 @@ message Customer {
     (buf.validate.field).string.uuid = true,
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
   ];
-  string name = 2 [(buf.validate.field).string = {
-    min_len: 1
-    max_len: 100
-  }];
-  string email = 3 [(buf.validate.field).string.email = true];
+  string name = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).string.max_len = 100,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
+  ];
+  string email = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).string.email = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
+  ];
 }
 
 message CreateCustomerRequest {
+  option (buf.validate.message).cel = {
+    id: "customer.name.required"
+    message: "customer.name is required"
+    expression: "this.customer.name != ''"
+  };
+  option (buf.validate.message).cel = {
+    id: "customer.email.required"
+    message: "customer.email is required"
+    expression: "this.customer.email != ''"
+  };
+
   Customer customer = 1 [(buf.validate.field).required = true];
 }
 
@@ -116,9 +135,11 @@ message ListCustomersResponse {
   string next_page_token = 2;
 }
 
-// UpdateCustomerRequest is a full replacement, so the entity rules on Customer
-// apply unchanged. The target is id; a different customer.id is rejected so a
-// client bug cannot silently update the wrong customer.
+// UpdateCustomerRequest follows AIP-134. Only the fields in update_mask
+// change; an omitted mask means every non-empty field of customer, and "*"
+// replaces every mutable field. "id" in the mask is ignored (AIP-203). The
+// target is id; a different customer.id is rejected so a client bug cannot
+// silently update the wrong customer.
 message UpdateCustomerRequest {
   option (buf.validate.message).cel = {
     id: "customer.id.matches_path"
@@ -126,8 +147,27 @@ message UpdateCustomerRequest {
     expression: "!has(this.customer) || this.customer.id == '' || this.customer.id == this.id"
   };
 
+  option (buf.validate.message).cel = {
+    id: "customer.name.required_by_mask"
+    message: "customer.name is required when update_mask contains name or *"
+    expression: "!('name' in this.update_mask.paths || '*' in this.update_mask.paths) || this.customer.name != ''"
+  };
+  option (buf.validate.message).cel = {
+    id: "customer.email.required_by_mask"
+    message: "customer.email is required when update_mask contains email or *"
+    expression: "!('email' in this.update_mask.paths || '*' in this.update_mask.paths) || this.customer.email != ''"
+  };
+
   string id = 1 [(buf.validate.field).string.uuid = true];
   Customer customer = 2 [(buf.validate.field).required = true];
+  google.protobuf.FieldMask update_mask = 3 [(buf.validate.field).field_mask = {
+    in: [
+      "*",
+      "id",
+      "name",
+      "email"
+    ]
+  }];
 }
 
 message UpdateCustomerResponse {

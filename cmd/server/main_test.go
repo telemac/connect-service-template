@@ -53,9 +53,10 @@ func TestCustomerIsReachableOverConnectAndREST(t *testing.T) {
 	assert.Equal(id, body.Customer.ID)
 	assert.Equal("Ada", body.Customer.Name)
 
-	// REST PUT binds {id} from the path and the body to customer.
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPut, srv.URL+"/v1/customers/"+id,
-		strings.NewReader(`{"name":"Ada Lovelace","email":"ada@lovelace.org"}`))
+	// REST PATCH binds {id} from the path, update_mask from the query and the
+	// body to customer.
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPatch, srv.URL+"/v1/customers/"+id+"?update_mask=name",
+		strings.NewReader(`{"name":"Ada Lovelace","email":"ignored@example.com"}`))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	putResp, err := srv.Client().Do(req)
@@ -66,6 +67,7 @@ func TestCustomerIsReachableOverConnectAndREST(t *testing.T) {
 	got, err := client.GetCustomer(t.Context(), &customerv1.GetCustomerRequest{Id: id})
 	require.NoError(t, err)
 	assert.Equal("Ada Lovelace", got.GetCustomer().GetName())
+	assert.Equal("ada@example.com", got.GetCustomer().GetEmail())
 
 	// REST list, with query parameters mapped to request fields.
 	listResp, err := srv.Client().Get(srv.URL + "/v1/customers?page_size=10&name_contains=ada&order_by=CUSTOMER_ORDER_NAME&descending=true")

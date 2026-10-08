@@ -34,15 +34,22 @@ committed. Run `make generate` before building.
 - Never edit generated code. Change the `.proto`, then `make generate`.
 - Domain packages import no `connectrpc.com/...`, no `gen/go/...`, no
   `net/http`. `make boundaries` enforces it.
-- Structural validation goes in the `.proto` (protovalidate), on the entity
-  message, not on requests. Requests embed the entity with
-  `(buf.validate.field).required = true`. Server-assigned fields are
-  `OUTPUT_ONLY` + `IGNORE_IF_ZERO_VALUE`, and handlers ignore their input value.
-  Domain constructors still guard invariants.
-- Updates are full replacements: `Update<Entity>Request { string id; <Entity>
-  <entity>; }`, REST `PUT /v1/<entities>/{id}`, `IDEMPOTENT`. The path id is
-  the target; a message-level CEL rule rejects a non-empty body id that
-  differs from it. No `update_mask` until an entity needs partial updates.
+- Structural validation goes in the `.proto` (protovalidate). Field rules
+  (format, length) live on the entity message with `IGNORE_IF_ZERO_VALUE`, so
+  they apply whenever a field is set. Presence depends on the request, so it
+  is enforced there with message-level CEL: always on create, only for fields
+  in the mask on update. Mark such fields `(google.api.field_behavior) =
+  REQUIRED`. Requests embed the entity with `(buf.validate.field).required =
+  true`. Server-assigned fields are `OUTPUT_ONLY` + `IGNORE_IF_ZERO_VALUE`, and
+  handlers ignore their input value. Domain constructors still guard
+  invariants.
+- Updates follow AIP-134: `Update<Entity>Request { string id; <Entity>
+  <entity>; google.protobuf.FieldMask update_mask; }`, REST
+  `PATCH /v1/<entities>/{id}`, `IDEMPOTENT`. Omitted mask = populated fields,
+  `*` = every mutable field, output-only paths are ignored (AIP-203), unknown
+  paths are rejected by `field_mask.in`. The domain takes a `Change` struct of
+  pointers (nil = keep) and merges under one lock. The path id is the target;
+  a CEL rule rejects a non-empty body id that differs from it.
 - Deletes: `DELETE /v1/<entities>/{id}`, `IDEMPOTENT`, empty
   `Delete<Entity>Response`. An unknown id is `NotFound`.
 - Lists: `GET /v1/<entities>`, `NO_SIDE_EFFECTS`, `page_size` (`gte: 0`;
@@ -71,9 +78,9 @@ committed. Run `make generate` before building.
 
 1. Create `api/<context>/v1/<context>.proto` from `api/customer/v1/customer.proto`
    (package `<context>.v1`, `go_package` under `gen/go/<context>/v1`).
-2. Put validation rules on the entity message; `Create<Entity>Request` embeds
-   it (REST `body: "<entity>"`). Add `google.api.http` routes. Mark read-only
-   RPCs `NO_SIDE_EFFECTS`.
+2. Put field rules on the entity message; `Create<Entity>Request` embeds it
+   (REST `body: "<entity>"`) and requires its REQUIRED fields with CEL. Add
+   `google.api.http` routes. Mark read-only RPCs `NO_SIDE_EFFECTS`.
 3. `make generate`.
 4. Create `internal/<context>/` with the domain type, constructor, sentinel
    errors and operations. Test it.
