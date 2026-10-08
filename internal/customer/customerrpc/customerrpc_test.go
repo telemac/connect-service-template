@@ -106,6 +106,20 @@ func TestListCustomersFollowsPageTokens(t *testing.T) {
 	assert.Equal(want, got)
 }
 
+func TestListCustomersWithoutPageSizeReturnsEverything(t *testing.T) {
+	assert := assert.New(t)
+	client := newClient(t)
+	for _, name := range []string{"Ada", "Grace", "Linus"} {
+		_, err := client.CreateCustomer(t.Context(), &customerv1.CreateCustomerRequest{Customer: &customerv1.Customer{Name: name, Email: "x@example.com"}})
+		assert.NoError(err)
+	}
+
+	resp, err := client.ListCustomers(t.Context(), &customerv1.ListCustomersRequest{})
+	assert.NoError(err)
+	assert.Len(resp.GetCustomers(), 3)
+	assert.Empty(resp.GetNextPageToken())
+}
+
 func TestErrorsMapToConnectCodes(t *testing.T) {
 	tests := []struct {
 		name string

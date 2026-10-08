@@ -46,7 +46,7 @@ committed. Run `make generate` before building.
 - Deletes: `DELETE /v1/<entities>/{id}`, `IDEMPOTENT`, empty
   `Delete<Entity>Response`. An unknown id is `NotFound`.
 - Lists: `GET /v1/<entities>`, `NO_SIDE_EFFECTS`, `page_size` (`gte: 0`;
-  0 = default 50, coerced to max 100) + opaque `page_token` /
+  0 = everything, unpaginated; coerced to max 10000) + opaque `page_token` /
   `next_page_token` (empty on the last page). The token is the last UUIDv7
   returned, so pages are stable in creation order. No filtering or sorting
   until needed.
