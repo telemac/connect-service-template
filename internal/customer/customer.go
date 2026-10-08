@@ -1,0 +1,69 @@
+// Package customer is the customer domain: the entity, its invariants and the
+// operations on it. It must not import transport or generated contract code;
+// internal/customer/customerrpc adapts it to the API.
+package customer
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"sync"
+	"uuid"
+)
+
+var (
+	ErrNotFound = errors.New("customer not found")
+	ErrInvalid  = errors.New("invalid customer")
+)
+
+type Customer struct {
+	ID    uuid.UUID
+	Name  string
+	Email string
+}
+
+// New returns a customer with a fresh ID. The contract already validates
+// requests; these checks keep the invariants true for any other caller.
+func New(name, email string) (Customer, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return Customer{}, fmt.Errorf("%w: name is required", ErrInvalid)
+	}
+	if !strings.Contains(email, "@") {
+		return Customer{}, fmt.Errorf("%w: email %q is malformed", ErrInvalid, email)
+	}
+	return Customer{ID: uuid.NewV7(), Name: name, Email: email}, nil
+}
+
+// Store keeps customers in memory. Persistence is out of scope for v1; a
+// database-backed store replaces it without changing callers.
+type Store struct {
+	mu   sync.RWMutex
+	byID map[uuid.UUID]Customer
+}
+
+func NewStore() *Store {
+	return &Store{byID: make(map[uuid.UUID]Customer)}
+}
+
+func (s *Store) Create(ctx context.Context, name, email string) (Customer, error) {
+	c, err := New(name, email)
+	if err != nil {
+		return Customer{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.byID[c.ID] = c
+	return c, nil
+}
+
+func (s *Store) Get(ctx context.Context, id uuid.UUID) (Customer, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	c, ok := s.byID[id]
+	if !ok {
+		return Customer{}, fmt.Errorf("%w: %s", ErrNotFound, id)
+	}
+	return c, nil
+}

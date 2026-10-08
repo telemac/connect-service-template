@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package customer.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+
+option go_package = "github.com/telemac/connectrpc-v2-poc/gen/go/customer/v1;customerv1";
+
+// CustomerService manages customers. It is the canonical example entity of
+// this boilerplate: copy it when adding a new one.
+service CustomerService {
+  rpc CreateCustomer(CreateCustomerRequest) returns (CreateCustomerResponse) {
+    option (google.api.http) = {
+      post: "/v1/customers"
+      body: "*"
+    };
+  }
+
+  rpc GetCustomer(GetCustomerRequest) returns (GetCustomerResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (google.api.http) = {get: "/v1/customers/{id}"};
+  }
+}
+
+message Customer {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+}
+
+message CreateCustomerRequest {
+  string name = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 100
+  }];
+  string email = 2 [(buf.validate.field).string.email = true];
+}
+
+message CreateCustomerResponse {
+  Customer customer = 1;
+}
+
+message GetCustomerRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetCustomerResponse {
+  Customer customer = 1;
+}

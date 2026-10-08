@@ -1,0 +1,29 @@
+# Run from api/ (make generate). Go plugins are pinned by the tool directive in
+# go.mod; protoc-gen-es is pinned by ts/package.json.
+version: v2
+
+plugins:
+  - local: [go, tool, protoc-gen-go]
+    out: ../gen/go
+    # module= strips this prefix from go_package; it must include the out path.
+    opt: module=github.com/telemac/connectrpc-v2-poc/gen/go
+
+  - local: [go, tool, protoc-gen-connect-go]
+    out: ../gen/go
+    opt: module=github.com/telemac/connectrpc-v2-poc/gen/go
+
+  # Written next to its go:embed so the server binary carries the document.
+  - local: [go, tool, protoc-gen-connect-openapi]
+    out: ../internal/openapi
+    strategy: all
+    opt:
+      - path=openapi.yaml
+      - features=google.api.http;protovalidate
+
+  - local: ../ts/node_modules/.bin/protoc-gen-es
+    out: ../ts/gen
+    include_imports: true
+    opt:
+      - target=ts
+      - import_extension=js
+      - map_imports=buf/validate/:@bufbuild/protovalidate/gen

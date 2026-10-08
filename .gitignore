@@ -1,0 +1,4 @@
+/gen/
+/ts/gen/
+/ts/node_modules/
+/internal/openapi/openapi.yaml
