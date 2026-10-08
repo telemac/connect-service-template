@@ -166,10 +166,11 @@ CLAUDE.md            # one line pointing to AGENTS.md
 .gitignore
 Makefile
 api/                 # buf.yaml, buf.gen.yaml, buf.lock, <package>/v1/*.proto
-gen/                 # generated Go + OpenAPI — not committed
+gen/                 # generated Go — not committed
 ts/                  # self-contained TS client: package.json, tsconfig.json, gen/ (not committed)
 cmd/server/          # entrypoint and wiring
 internal/<context>/  # domain types, service, mappers, handler
+internal/openapi/     # embeds the generated openapi.yaml (not committed)
 docs/                # intent.md, decisions/ (ADRs)
 ```
 
