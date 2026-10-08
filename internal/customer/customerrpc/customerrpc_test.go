@@ -106,7 +106,7 @@ func TestListCustomersFollowsPageTokens(t *testing.T) {
 	assert.Equal(want, got)
 }
 
-func TestListCustomersWithoutPageSizeReturnsEverything(t *testing.T) {
+func TestListCustomersWithoutPageSizeUsesDefaultPage(t *testing.T) {
 	assert := assert.New(t)
 	client := newClient(t)
 	for _, name := range []string{"Ada", "Grace", "Linus"} {

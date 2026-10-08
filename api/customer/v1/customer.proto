@@ -78,8 +78,8 @@ message GetCustomerResponse {
 }
 
 message ListCustomersRequest {
-  // Maximum number of customers to return. 0 returns every customer in one
-  // response, unpaginated; values above 10000 are coerced to 10000.
+  // Maximum number of customers to return. 0 means the server default (1000);
+  // values above 10000 are coerced to 10000.
   int32 page_size = 1 [(buf.validate.field).int32.gte = 0];
   // Opaque token from a previous next_page_token. Empty for the first page.
   string page_token = 2;

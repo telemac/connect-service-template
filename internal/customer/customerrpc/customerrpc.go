@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"math"
 	"uuid"
 
 	"connectrpc.com/connect/v2"
@@ -16,7 +15,10 @@ import (
 	"github.com/telemac/connectrpc-v2-poc/internal/customer"
 )
 
-const maxPageSize = 10000
+const (
+	defaultPageSize = 1000
+	maxPageSize     = 10000
+)
 
 type Handler struct {
 	customerv1connect.UnimplementedCustomerServiceHandler
@@ -60,11 +62,10 @@ func (h *Handler) ListCustomers(ctx context.Context, req *customerv1.ListCustome
 		}
 		after = id
 	}
-	// 0 means unpaginated: callers asked for everything in one response.
 	size := int(req.GetPageSize())
 	switch {
 	case size == 0:
-		size = math.MaxInt
+		size = defaultPageSize
 	case size > maxPageSize:
 		size = maxPageSize
 	}
