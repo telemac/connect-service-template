@@ -11,6 +11,7 @@ import (
 	"connectrpc.com/connect/v2/connectinprocess"
 	"connectrpc.com/validate"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	customerv1 "github.com/telemac/connectrpc-v2-poc/gen/go/customer/v1"
 	"github.com/telemac/connectrpc-v2-poc/gen/go/customer/v1/customerv1connect"
@@ -163,19 +164,41 @@ func TestListCustomersSortsAcrossPages(t *testing.T) {
 	assert.Equal([]string{"Linus", "Grace", "Ada"}, got)
 }
 
-func TestListCustomersRejectsTokenFromAnotherOrder(t *testing.T) {
-	assert := assert.New(t)
+func TestListCustomersRejectsTokenReplayedWithOtherParameters(t *testing.T) {
 	client := newClient(t)
-	for _, name := range []string{"Ada", "Grace"} {
+	for _, name := range []string{"Ada", "Adele", "Grace"} {
 		_, err := client.CreateCustomer(t.Context(), &customerv1.CreateCustomerRequest{Customer: &customerv1.Customer{Name: name, Email: "x@example.com"}})
-		assert.NoError(err)
+		require.NoError(t, err)
 	}
-	first, err := client.ListCustomers(t.Context(), &customerv1.ListCustomersRequest{PageSize: 1, OrderBy: customerv1.CustomerOrder_CUSTOMER_ORDER_NAME})
-	assert.NoError(err)
-	assert.NotEmpty(first.GetNextPageToken())
+	issued := &customerv1.ListCustomersRequest{PageSize: 1, NameContains: "ad", OrderBy: customerv1.CustomerOrder_CUSTOMER_ORDER_NAME}
+	first, err := client.ListCustomers(t.Context(), issued)
+	require.NoError(t, err)
+	token := first.GetNextPageToken()
+	require.NotEmpty(t, token)
 
-	_, err = client.ListCustomers(t.Context(), &customerv1.ListCustomersRequest{PageSize: 1, PageToken: first.GetNextPageToken()})
-	assert.Equal(connect.CodeInvalidArgument, codeOf(err))
+	tests := []struct {
+		name     string
+		req      *customerv1.ListCustomersRequest
+		rejected bool
+	}{
+		{"same parameters are accepted", &customerv1.ListCustomersRequest{PageSize: 1, NameContains: "ad", OrderBy: customerv1.CustomerOrder_CUSTOMER_ORDER_NAME}, false},
+		{"other order", &customerv1.ListCustomersRequest{PageSize: 1, NameContains: "ad"}, true},
+		{"other direction", &customerv1.ListCustomersRequest{PageSize: 1, NameContains: "ad", OrderBy: customerv1.CustomerOrder_CUSTOMER_ORDER_NAME, Descending: true}, true},
+		{"other name filter", &customerv1.ListCustomersRequest{PageSize: 1, NameContains: "gr", OrderBy: customerv1.CustomerOrder_CUSTOMER_ORDER_NAME}, true},
+		{"added email filter", &customerv1.ListCustomersRequest{PageSize: 1, NameContains: "ad", Email: "x@example.com", OrderBy: customerv1.CustomerOrder_CUSTOMER_ORDER_NAME}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			tt.req.PageToken = token
+			_, err := client.ListCustomers(t.Context(), tt.req)
+			if tt.rejected {
+				assert.Equal(connect.CodeInvalidArgument, codeOf(err))
+			} else {
+				assert.NoError(err)
+			}
+		})
+	}
 }
 
 func TestErrorsMapToConnectCodes(t *testing.T) {

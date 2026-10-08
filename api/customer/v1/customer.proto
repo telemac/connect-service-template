@@ -82,7 +82,7 @@ message ListCustomersRequest {
   // values above 10000 are coerced to 10000.
   int32 page_size = 1 [(buf.validate.field).int32.gte = 0];
   // Opaque token from a previous next_page_token. Empty for the first page.
-  // Keep the same filters across the pages of one listing.
+  // Only valid with the filters and sort it was issued for.
   string page_token = 2;
 
   // Filters. Empty fields are ignored; set fields are combined with AND.
@@ -94,7 +94,7 @@ message ListCustomersRequest {
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
   ];
 
-  // Sort. A page_token is only valid with the order it was issued for.
+  // Sort.
   CustomerOrder order_by = 5 [(buf.validate.field).enum.defined_only = true];
   bool descending = 6;
 }

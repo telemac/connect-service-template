@@ -52,13 +52,14 @@ func (h *Handler) GetCustomer(ctx context.Context, req *customerv1.GetCustomerRe
 }
 
 func (h *Handler) ListCustomers(ctx context.Context, req *customerv1.ListCustomersRequest) (*customerv1.ListCustomersResponse, error) {
+	filter := customer.Filter{NameContains: req.GetNameContains(), Email: req.GetEmail()}
 	order, err := toOrder(req.GetOrderBy(), req.GetDescending())
 	if err != nil {
 		return nil, err
 	}
 	var after customer.Cursor
 	if req.GetPageToken() != "" {
-		if after, err = decodePageToken(req.GetPageToken(), order); err != nil {
+		if after, err = decodePageToken(req.GetPageToken(), filter, order); err != nil {
 			return nil, err
 		}
 	}
@@ -70,7 +71,6 @@ func (h *Handler) ListCustomers(ctx context.Context, req *customerv1.ListCustome
 		size = maxPageSize
 	}
 
-	filter := customer.Filter{NameContains: req.GetNameContains(), Email: req.GetEmail()}
 	page, next, err := h.store.List(ctx, filter, order, after, size)
 	if err != nil {
 		return nil, h.toConnectError(ctx, err)
@@ -80,7 +80,7 @@ func (h *Handler) ListCustomers(ctx context.Context, req *customerv1.ListCustome
 		resp.Customers = append(resp.Customers, toContract(c))
 	}
 	if next != (customer.Cursor{}) {
-		if resp.NextPageToken, err = encodePageToken(order, next); err != nil {
+		if resp.NextPageToken, err = encodePageToken(filter, order, next); err != nil {
 			return nil, h.toConnectError(ctx, err)
 		}
 	}

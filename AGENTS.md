@@ -48,8 +48,9 @@ committed. Run `make generate` before building.
 - Lists: `GET /v1/<entities>`, `NO_SIDE_EFFECTS`, `page_size` (`gte: 0`;
   0 = default 1000, coerced to max 10000; AIP-158) + opaque `page_token` /
   `next_page_token` (empty on the last page). The token is base64 JSON of
-  the order plus the last (sort key, UUIDv7 id) returned: keyset pagination,
-  stable while rows are added, rejected if replayed with another order.
+  the filters and order plus the last (sort key, UUIDv7 id) returned: keyset
+  pagination, stable while rows are added, rejected if replayed with other
+  filters or another order.
   Sorting is a typed enum `order_by` (`<ENTITY>_ORDER_UNSPECIFIED` = creation)
   + `bool descending`; ties break on id. Filters are typed request
   fields (e.g. `name_contains`, `email`), validated like any other field and
