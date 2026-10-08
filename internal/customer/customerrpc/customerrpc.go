@@ -26,7 +26,8 @@ func NewHandler(store *customer.Store, logger *slog.Logger) *Handler {
 }
 
 func (h *Handler) CreateCustomer(ctx context.Context, req *customerv1.CreateCustomerRequest) (*customerv1.CreateCustomerResponse, error) {
-	c, err := h.store.Create(ctx, req.GetName(), req.GetEmail())
+	// The client-supplied id is ignored: the domain assigns it.
+	c, err := h.store.Create(ctx, req.GetCustomer().GetName(), req.GetCustomer().GetEmail())
 	if err != nil {
 		return nil, h.toConnectError(ctx, err)
 	}

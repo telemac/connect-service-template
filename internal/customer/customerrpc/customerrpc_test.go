@@ -37,7 +37,7 @@ func TestCreatedCustomerCanBeFetched(t *testing.T) {
 	assert := assert.New(t)
 	client := newClient(t)
 
-	created, err := client.CreateCustomer(t.Context(), &customerv1.CreateCustomerRequest{Name: "Ada", Email: "ada@example.com"})
+	created, err := client.CreateCustomer(t.Context(), &customerv1.CreateCustomerRequest{Customer: &customerv1.Customer{Name: "Ada", Email: "ada@example.com"}})
 	assert.NoError(err)
 
 	got, err := client.GetCustomer(t.Context(), &customerv1.GetCustomerRequest{Id: created.GetCustomer().GetId()})
@@ -55,7 +55,15 @@ func TestErrorsMapToConnectCodes(t *testing.T) {
 		{
 			name: "contract validation rejects a malformed email",
 			call: func(c customerv1connect.CustomerServiceClient) error {
-				_, err := c.CreateCustomer(t.Context(), &customerv1.CreateCustomerRequest{Name: "Ada", Email: "not-an-email"})
+				_, err := c.CreateCustomer(t.Context(), &customerv1.CreateCustomerRequest{Customer: &customerv1.Customer{Name: "Ada", Email: "not-an-email"}})
+				return err
+			},
+			want: connect.CodeInvalidArgument,
+		},
+		{
+			name: "contract validation requires the customer",
+			call: func(c customerv1connect.CustomerServiceClient) error {
+				_, err := c.CreateCustomer(t.Context(), &customerv1.CreateCustomerRequest{})
 				return err
 			},
 			want: connect.CodeInvalidArgument,

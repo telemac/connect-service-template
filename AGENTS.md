@@ -34,8 +34,11 @@ committed. Run `make generate` before building.
 - Never edit generated code. Change the `.proto`, then `make generate`.
 - Domain packages import no `connectrpc.com/...`, no `gen/go/...`, no
   `net/http`. `make boundaries` enforces it.
-- Structural validation goes in the `.proto` (protovalidate). Domain
-  constructors still guard invariants.
+- Structural validation goes in the `.proto` (protovalidate), on the entity
+  message, not on requests. Requests embed the entity with
+  `(buf.validate.field).required = true`. Server-assigned fields are
+  `OUTPUT_ONLY` + `IGNORE_IF_ZERO_VALUE`, and handlers ignore their input value.
+  Domain constructors still guard invariants.
 - Only the `*rpc` adapter builds `*connect.Error`. Unknown errors are logged
   and returned as `CodeInternal` with no message.
 - Mapping is explicit (`toContract`, ...). No reflection-based mappers.
@@ -50,8 +53,9 @@ committed. Run `make generate` before building.
 
 1. Create `api/<context>/v1/<context>.proto` from `api/customer/v1/customer.proto`
    (package `<context>.v1`, `go_package` under `gen/go/<context>/v1`).
-2. Add validation rules and `google.api.http` routes. Mark read-only RPCs
-   `NO_SIDE_EFFECTS`.
+2. Put validation rules on the entity message; `Create<Entity>Request` embeds
+   it (REST `body: "<entity>"`). Add `google.api.http` routes. Mark read-only
+   RPCs `NO_SIDE_EFFECTS`.
 3. `make generate`.
 4. Create `internal/<context>/` with the domain type, constructor, sentinel
    errors and operations. Test it.

@@ -4,6 +4,7 @@ package customer.v1;
 
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
+import "google/api/field_behavior.proto";
 
 option go_package = "github.com/telemac/connectrpc-v2-poc/gen/go/customer/v1;customerv1";
 
@@ -13,7 +14,7 @@ service CustomerService {
   rpc CreateCustomer(CreateCustomerRequest) returns (CreateCustomerResponse) {
     option (google.api.http) = {
       post: "/v1/customers"
-      body: "*"
+      body: "customer"
     };
   }
 
@@ -23,18 +24,24 @@ service CustomerService {
   }
 }
 
+// Customer carries the entity's constraints; requests embed it instead of
+// repeating them.
 message Customer {
-  string id = 1;
-  string name = 2;
-  string email = 3;
-}
-
-message CreateCustomerRequest {
-  string name = 1 [(buf.validate.field).string = {
+  // Assigned by the server; ignored on create.
+  string id = 1 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (buf.validate.field).string.uuid = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
+  ];
+  string name = 2 [(buf.validate.field).string = {
     min_len: 1
     max_len: 100
   }];
-  string email = 2 [(buf.validate.field).string.email = true];
+  string email = 3 [(buf.validate.field).string.email = true];
+}
+
+message CreateCustomerRequest {
+  Customer customer = 1 [(buf.validate.field).required = true];
 }
 
 message CreateCustomerResponse {

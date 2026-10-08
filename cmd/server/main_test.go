@@ -33,7 +33,7 @@ func TestCustomerIsReachableOverConnectAndREST(t *testing.T) {
 
 	// Connect protocol, binary proto codec.
 	client := customerv1connect.NewCustomerServiceClient(connect.NewClient(connecthttp.NewTransport(srv.Client(), srv.URL)))
-	created, err := client.CreateCustomer(t.Context(), &customerv1.CreateCustomerRequest{Name: "Ada", Email: "ada@example.com"})
+	created, err := client.CreateCustomer(t.Context(), &customerv1.CreateCustomerRequest{Customer: &customerv1.Customer{Name: "Ada", Email: "ada@example.com"}})
 	require.NoError(t, err)
 	id := created.GetCustomer().GetId()
 
