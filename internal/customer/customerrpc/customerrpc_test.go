@@ -135,6 +135,49 @@ func TestListCustomersAppliesFilters(t *testing.T) {
 	}
 }
 
+func TestListCustomersSortsAcrossPages(t *testing.T) {
+	assert := assert.New(t)
+	client := newClient(t)
+	for _, name := range []string{"Grace", "Ada", "Linus"} {
+		_, err := client.CreateCustomer(t.Context(), &customerv1.CreateCustomerRequest{Customer: &customerv1.Customer{Name: name, Email: "x@example.com"}})
+		assert.NoError(err)
+	}
+
+	var got []string
+	token := ""
+	for range 10 {
+		resp, err := client.ListCustomers(t.Context(), &customerv1.ListCustomersRequest{
+			PageSize:   1,
+			PageToken:  token,
+			OrderBy:    customerv1.CustomerOrder_CUSTOMER_ORDER_NAME,
+			Descending: true,
+		})
+		assert.NoError(err)
+		for _, c := range resp.GetCustomers() {
+			got = append(got, c.GetName())
+		}
+		if token = resp.GetNextPageToken(); token == "" {
+			break
+		}
+	}
+	assert.Equal([]string{"Linus", "Grace", "Ada"}, got)
+}
+
+func TestListCustomersRejectsTokenFromAnotherOrder(t *testing.T) {
+	assert := assert.New(t)
+	client := newClient(t)
+	for _, name := range []string{"Ada", "Grace"} {
+		_, err := client.CreateCustomer(t.Context(), &customerv1.CreateCustomerRequest{Customer: &customerv1.Customer{Name: name, Email: "x@example.com"}})
+		assert.NoError(err)
+	}
+	first, err := client.ListCustomers(t.Context(), &customerv1.ListCustomersRequest{PageSize: 1, OrderBy: customerv1.CustomerOrder_CUSTOMER_ORDER_NAME})
+	assert.NoError(err)
+	assert.NotEmpty(first.GetNextPageToken())
+
+	_, err = client.ListCustomers(t.Context(), &customerv1.ListCustomersRequest{PageSize: 1, PageToken: first.GetNextPageToken()})
+	assert.Equal(connect.CodeInvalidArgument, codeOf(err))
+}
+
 func TestErrorsMapToConnectCodes(t *testing.T) {
 	tests := []struct {
 		name string
@@ -223,6 +266,14 @@ func TestErrorsMapToConnectCodes(t *testing.T) {
 			name: "list rejects a malformed email filter",
 			call: func(c customerv1connect.CustomerServiceClient) error {
 				_, err := c.ListCustomers(t.Context(), &customerv1.ListCustomersRequest{Email: "not-an-email"})
+				return err
+			},
+			want: connect.CodeInvalidArgument,
+		},
+		{
+			name: "list rejects an undefined order",
+			call: func(c customerv1connect.CustomerServiceClient) error {
+				_, err := c.ListCustomers(t.Context(), &customerv1.ListCustomersRequest{OrderBy: 99})
 				return err
 			},
 			want: connect.CodeInvalidArgument,

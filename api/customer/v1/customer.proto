@@ -93,6 +93,21 @@ message ListCustomersRequest {
     (buf.validate.field).string.email = true,
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
   ];
+
+  // Sort. A page_token is only valid with the order it was issued for.
+  CustomerOrder order_by = 5 [(buf.validate.field).enum.defined_only = true];
+  bool descending = 6;
+}
+
+// CustomerOrder is the sort key of ListCustomers. Ties are broken by creation
+// order.
+enum CustomerOrder {
+  // Creation order.
+  CUSTOMER_ORDER_UNSPECIFIED = 0;
+  // Case-insensitive name.
+  CUSTOMER_ORDER_NAME = 1;
+  // Case-insensitive email.
+  CUSTOMER_ORDER_EMAIL = 2;
 }
 
 message ListCustomersResponse {

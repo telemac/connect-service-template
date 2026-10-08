@@ -51,16 +51,16 @@ func (h *Handler) GetCustomer(ctx context.Context, req *customerv1.GetCustomerRe
 	return &customerv1.GetCustomerResponse{Customer: toContract(c)}, nil
 }
 
-// ListCustomers uses the last returned ID as the page token. Clients must
-// treat it as opaque so the encoding can change.
 func (h *Handler) ListCustomers(ctx context.Context, req *customerv1.ListCustomersRequest) (*customerv1.ListCustomersResponse, error) {
-	after := uuid.Nil()
-	if token := req.GetPageToken(); token != "" {
-		id, err := uuid.Parse(token)
-		if err != nil {
-			return nil, connect.NewError(connect.CodeInvalidArgument, "invalid page_token")
+	order, err := toOrder(req.GetOrderBy(), req.GetDescending())
+	if err != nil {
+		return nil, err
+	}
+	var after customer.Cursor
+	if req.GetPageToken() != "" {
+		if after, err = decodePageToken(req.GetPageToken(), order); err != nil {
+			return nil, err
 		}
-		after = id
 	}
 	size := int(req.GetPageSize())
 	switch {
@@ -71,7 +71,7 @@ func (h *Handler) ListCustomers(ctx context.Context, req *customerv1.ListCustome
 	}
 
 	filter := customer.Filter{NameContains: req.GetNameContains(), Email: req.GetEmail()}
-	page, more, err := h.store.List(ctx, filter, after, size)
+	page, next, err := h.store.List(ctx, filter, order, after, size)
 	if err != nil {
 		return nil, h.toConnectError(ctx, err)
 	}
@@ -79,10 +79,27 @@ func (h *Handler) ListCustomers(ctx context.Context, req *customerv1.ListCustome
 	for _, c := range page {
 		resp.Customers = append(resp.Customers, toContract(c))
 	}
-	if more {
-		resp.NextPageToken = page[len(page)-1].ID.String()
+	if next != (customer.Cursor{}) {
+		if resp.NextPageToken, err = encodePageToken(order, next); err != nil {
+			return nil, h.toConnectError(ctx, err)
+		}
 	}
 	return resp, nil
+}
+
+func toOrder(by customerv1.CustomerOrder, descending bool) (customer.Order, error) {
+	order := customer.Order{Descending: descending}
+	switch by {
+	case customerv1.CustomerOrder_CUSTOMER_ORDER_UNSPECIFIED:
+		order.Key = customer.SortByCreation
+	case customerv1.CustomerOrder_CUSTOMER_ORDER_NAME:
+		order.Key = customer.SortByName
+	case customerv1.CustomerOrder_CUSTOMER_ORDER_EMAIL:
+		order.Key = customer.SortByEmail
+	default:
+		return customer.Order{}, connect.Errorf(connect.CodeInvalidArgument, "unsupported order_by %v", by)
+	}
+	return order, nil
 }
 
 func (h *Handler) UpdateCustomer(ctx context.Context, req *customerv1.UpdateCustomerRequest) (*customerv1.UpdateCustomerResponse, error) {

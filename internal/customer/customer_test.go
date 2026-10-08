@@ -94,15 +94,60 @@ func TestStoreListPagesInCreationOrder(t *testing.T) {
 		want = append(want, c)
 	}
 
-	first, more, err := store.List(t.Context(), customer.Filter{}, uuid.Nil(), 2)
+	first, next, err := store.List(t.Context(), customer.Filter{}, customer.Order{}, customer.Cursor{}, 2)
 	assert.NoError(err)
-	assert.True(more)
+	assert.NotZero(next)
 	assert.Equal(want[:2], first)
 
-	second, more, err := store.List(t.Context(), customer.Filter{}, first[1].ID, 2)
+	second, next, err := store.List(t.Context(), customer.Filter{}, customer.Order{}, next, 2)
 	assert.NoError(err)
-	assert.False(more)
+	assert.Zero(next)
 	assert.Equal(want[2:], second)
+}
+
+func TestStoreListSorts(t *testing.T) {
+	store := customer.NewStore()
+	// Two "ada" names differing only by case check tie-breaking by creation.
+	for _, c := range []struct{ name, email string }{
+		{"grace", "b@example.com"},
+		{"Ada", "c@example.com"},
+		{"ada", "a@example.com"},
+	} {
+		_, err := store.Create(t.Context(), c.name, c.email)
+		require.NoError(t, err)
+	}
+
+	tests := []struct {
+		name  string
+		order customer.Order
+		want  []string
+	}{
+		{"creation ascending", customer.Order{}, []string{"grace", "Ada", "ada"}},
+		{"creation descending", customer.Order{Descending: true}, []string{"ada", "Ada", "grace"}},
+		{"name ignores case, ties by creation", customer.Order{Key: customer.SortByName}, []string{"Ada", "ada", "grace"}},
+		{"name descending", customer.Order{Key: customer.SortByName, Descending: true}, []string{"grace", "ada", "Ada"}},
+		{"email", customer.Order{Key: customer.SortByEmail}, []string{"ada", "grace", "Ada"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			// Page size 1 makes every step go through the cursor.
+			var got []string
+			var after customer.Cursor
+			for range 10 {
+				page, next, err := store.List(t.Context(), customer.Filter{}, tt.order, after, 1)
+				assert.NoError(err)
+				for _, c := range page {
+					got = append(got, c.Name)
+				}
+				if next == (customer.Cursor{}) {
+					break
+				}
+				after = next
+			}
+			assert.Equal(tt.want, got)
+		})
+	}
 }
 
 func TestStoreListFilters(t *testing.T) {
@@ -130,9 +175,9 @@ func TestStoreListFilters(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert := assert.New(t)
-			page, more, err := store.List(t.Context(), tt.filter, uuid.Nil(), 10)
+			page, next, err := store.List(t.Context(), tt.filter, customer.Order{}, customer.Cursor{}, 10)
 			assert.NoError(err)
-			assert.False(more)
+			assert.Zero(next)
 			var got []string
 			for _, c := range page {
 				got = append(got, c.Name)

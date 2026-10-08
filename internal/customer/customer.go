@@ -4,6 +4,7 @@
 package customer
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -115,21 +116,67 @@ func (f Filter) matches(c Customer) bool {
 	return true
 }
 
-// List returns up to limit customers matching filter with an ID greater than
-// after, in ID order. UUIDv7 IDs make that creation order, so pages stay
-// stable while customers are added. more reports whether matching customers
-// remain after the page.
-func (s *Store) List(ctx context.Context, filter Filter, after uuid.UUID, limit int) (page []Customer, more bool, err error) {
+type SortKey int
+
+const (
+	SortByCreation SortKey = iota
+	SortByName
+	SortByEmail
+)
+
+// Order sorts customers. The zero value is creation order, ascending. Ties
+// on the sort key are broken by ID, which keeps the order total.
+type Order struct {
+	Key        SortKey
+	Descending bool
+}
+
+// Cursor is a position in an ordered listing: the sort key value and ID of
+// the last customer already returned. The zero value is the start.
+type Cursor struct {
+	Key string
+	ID  uuid.UUID
+}
+
+func (o Order) cursor(c Customer) Cursor {
+	switch o.Key {
+	case SortByName:
+		return Cursor{Key: strings.ToLower(c.Name), ID: c.ID}
+	case SortByEmail:
+		return Cursor{Key: strings.ToLower(c.Email), ID: c.ID}
+	default:
+		return Cursor{ID: c.ID}
+	}
+}
+
+func (o Order) compare(a, b Cursor) int {
+	r := cmp.Or(strings.Compare(a.Key, b.Key), a.ID.Compare(b.ID))
+	if o.Descending {
+		return -r
+	}
+	return r
+}
+
+// List returns up to limit customers matching filter, sorted by order and
+// positioned after the cursor. next is the cursor of the following page, or
+// the zero Cursor when no matching customers remain. UUIDv7 IDs make ID
+// order creation order, so pages stay stable while customers are added.
+func (s *Store) List(ctx context.Context, filter Filter, order Order, after Cursor, limit int) (page []Customer, next Cursor, err error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, c := range s.byID {
-		if c.ID.Compare(after) > 0 && filter.matches(c) {
-			page = append(page, c)
+		if !filter.matches(c) {
+			continue
 		}
+		if after != (Cursor{}) && order.compare(order.cursor(c), after) <= 0 {
+			continue
+		}
+		page = append(page, c)
 	}
-	slices.SortFunc(page, func(a, b Customer) int { return a.ID.Compare(b.ID) })
+	slices.SortFunc(page, func(a, b Customer) int { return order.compare(order.cursor(a), order.cursor(b)) })
 	if len(page) > limit {
-		return page[:limit], true, nil
+		page = page[:limit]
+		return page, order.cursor(page[limit-1]), nil
 	}
-	return page, false, nil
+	return page, Cursor{}, nil
 }

@@ -47,12 +47,15 @@ committed. Run `make generate` before building.
   `Delete<Entity>Response`. An unknown id is `NotFound`.
 - Lists: `GET /v1/<entities>`, `NO_SIDE_EFFECTS`, `page_size` (`gte: 0`;
   0 = default 1000, coerced to max 10000; AIP-158) + opaque `page_token` /
-  `next_page_token` (empty on the last page). The token is the last UUIDv7
-  returned, so pages are stable in creation order. Filters are typed request
+  `next_page_token` (empty on the last page). The token is base64 JSON of
+  the order plus the last (sort key, UUIDv7 id) returned: keyset pagination,
+  stable while rows are added, rejected if replayed with another order.
+  Sorting is a typed enum `order_by` (`<ENTITY>_ORDER_UNSPECIFIED` = creation)
+  + `bool descending`; ties break on id. Filters are typed request
   fields (e.g. `name_contains`, `email`), validated like any other field and
   combined with AND; the domain receives them as a `Filter` struct whose zero
-  value matches everything. No AIP-160 `filter` string, no sorting until
-  needed.
+  value matches everything. No AIP-160 `filter` or AIP-132 `order_by`
+  strings.
 - Only the `*rpc` adapter builds `*connect.Error`. Unknown errors are logged
   and returned as `CodeInternal` with no message.
 - Mapping is explicit (`toContract`, ...). No reflection-based mappers.
