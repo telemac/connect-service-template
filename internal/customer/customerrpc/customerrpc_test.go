@@ -55,10 +55,10 @@ func TestUpdatedCustomerIsReturnedAndStored(t *testing.T) {
 
 	updated, err := client.UpdateCustomer(t.Context(), &customerv1.UpdateCustomerRequest{
 		Id:       id,
-		Customer: &customerv1.Customer{Id: uuid.NewV7().String(), Name: "Ada Lovelace", Email: "ada@lovelace.org"},
+		Customer: &customerv1.Customer{Id: id, Name: "Ada Lovelace", Email: "ada@lovelace.org"},
 	})
 	assert.NoError(err)
-	assert.Equal(id, updated.GetCustomer().GetId(), "customer.id in the body must be ignored")
+	assert.Equal(id, updated.GetCustomer().GetId())
 
 	got, err := client.GetCustomer(t.Context(), &customerv1.GetCustomerRequest{Id: id})
 	assert.NoError(err)
@@ -92,6 +92,17 @@ func TestErrorsMapToConnectCodes(t *testing.T) {
 			name: "update requires the customer",
 			call: func(c customerv1connect.CustomerServiceClient) error {
 				_, err := c.UpdateCustomer(t.Context(), &customerv1.UpdateCustomerRequest{Id: uuid.NewV7().String()})
+				return err
+			},
+			want: connect.CodeInvalidArgument,
+		},
+		{
+			name: "update rejects a body id different from the target id",
+			call: func(c customerv1connect.CustomerServiceClient) error {
+				_, err := c.UpdateCustomer(t.Context(), &customerv1.UpdateCustomerRequest{
+					Id:       uuid.NewV7().String(),
+					Customer: &customerv1.Customer{Id: uuid.NewV7().String(), Name: "Ada", Email: "ada@example.com"},
+				})
 				return err
 			},
 			want: connect.CodeInvalidArgument,

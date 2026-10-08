@@ -66,8 +66,15 @@ message GetCustomerResponse {
 }
 
 // UpdateCustomerRequest is a full replacement, so the entity rules on Customer
-// apply unchanged. The target is id; customer.id is ignored.
+// apply unchanged. The target is id; a different customer.id is rejected so a
+// client bug cannot silently update the wrong customer.
 message UpdateCustomerRequest {
+  option (buf.validate.message).cel = {
+    id: "customer.id.matches_path"
+    message: "customer.id must be empty or equal to id"
+    expression: "!has(this.customer) || this.customer.id == '' || this.customer.id == this.id"
+  };
+
   string id = 1 [(buf.validate.field).string.uuid = true];
   Customer customer = 2 [(buf.validate.field).required = true];
 }

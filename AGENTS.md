@@ -41,8 +41,8 @@ committed. Run `make generate` before building.
   Domain constructors still guard invariants.
 - Updates are full replacements: `Update<Entity>Request { string id; <Entity>
   <entity>; }`, REST `PUT /v1/<entities>/{id}`, `IDEMPOTENT`. The path id is
-  the target; the body's id is ignored. No `update_mask` until an entity needs
-  partial updates.
+  the target; a message-level CEL rule rejects a non-empty body id that
+  differs from it. No `update_mask` until an entity needs partial updates.
 - Only the `*rpc` adapter builds `*connect.Error`. Unknown errors are logged
   and returned as `CodeInternal` with no message.
 - Mapping is explicit (`toContract`, ...). No reflection-based mappers.
