@@ -120,6 +120,21 @@ func TestListCustomersWithoutPageSizeUsesDefaultPage(t *testing.T) {
 	assert.Empty(resp.GetNextPageToken())
 }
 
+func TestListCustomersAppliesFilters(t *testing.T) {
+	assert := assert.New(t)
+	client := newClient(t)
+	for _, c := range []struct{ name, email string }{{"Ada", "ada@example.com"}, {"Grace", "grace@example.com"}} {
+		_, err := client.CreateCustomer(t.Context(), &customerv1.CreateCustomerRequest{Customer: &customerv1.Customer{Name: c.name, Email: c.email}})
+		assert.NoError(err)
+	}
+
+	resp, err := client.ListCustomers(t.Context(), &customerv1.ListCustomersRequest{NameContains: "gra", Email: "grace@example.com"})
+	assert.NoError(err)
+	if assert.Len(resp.GetCustomers(), 1) {
+		assert.Equal("Grace", resp.GetCustomers()[0].GetName())
+	}
+}
+
 func TestErrorsMapToConnectCodes(t *testing.T) {
 	tests := []struct {
 		name string
@@ -200,6 +215,14 @@ func TestErrorsMapToConnectCodes(t *testing.T) {
 			name: "list rejects a malformed page token",
 			call: func(c customerv1connect.CustomerServiceClient) error {
 				_, err := c.ListCustomers(t.Context(), &customerv1.ListCustomersRequest{PageToken: "garbage"})
+				return err
+			},
+			want: connect.CodeInvalidArgument,
+		},
+		{
+			name: "list rejects a malformed email filter",
+			call: func(c customerv1connect.CustomerServiceClient) error {
+				_, err := c.ListCustomers(t.Context(), &customerv1.ListCustomersRequest{Email: "not-an-email"})
 				return err
 			},
 			want: connect.CodeInvalidArgument,

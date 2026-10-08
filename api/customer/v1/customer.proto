@@ -82,7 +82,17 @@ message ListCustomersRequest {
   // values above 10000 are coerced to 10000.
   int32 page_size = 1 [(buf.validate.field).int32.gte = 0];
   // Opaque token from a previous next_page_token. Empty for the first page.
+  // Keep the same filters across the pages of one listing.
   string page_token = 2;
+
+  // Filters. Empty fields are ignored; set fields are combined with AND.
+  // Case-insensitive substring of the name.
+  string name_contains = 3 [(buf.validate.field).string.max_len = 100];
+  // Case-insensitive exact email.
+  string email = 4 [
+    (buf.validate.field).string.email = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
+  ];
 }
 
 message ListCustomersResponse {

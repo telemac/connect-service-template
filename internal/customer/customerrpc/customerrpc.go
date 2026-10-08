@@ -70,7 +70,8 @@ func (h *Handler) ListCustomers(ctx context.Context, req *customerv1.ListCustome
 		size = maxPageSize
 	}
 
-	page, more, err := h.store.List(ctx, after, size)
+	filter := customer.Filter{NameContains: req.GetNameContains(), Email: req.GetEmail()}
+	page, more, err := h.store.List(ctx, filter, after, size)
 	if err != nil {
 		return nil, h.toConnectError(ctx, err)
 	}

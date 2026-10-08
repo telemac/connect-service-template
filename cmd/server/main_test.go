@@ -68,7 +68,7 @@ func TestCustomerIsReachableOverConnectAndREST(t *testing.T) {
 	assert.Equal("Ada Lovelace", got.GetCustomer().GetName())
 
 	// REST list, with query parameters mapped to request fields.
-	listResp, err := srv.Client().Get(srv.URL + "/v1/customers?page_size=10")
+	listResp, err := srv.Client().Get(srv.URL + "/v1/customers?page_size=10&name_contains=ada")
 	require.NoError(t, err)
 	defer listResp.Body.Close()
 	var list struct {

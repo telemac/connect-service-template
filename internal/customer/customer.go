@@ -98,14 +98,32 @@ func (s *Store) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// List returns up to limit customers with an ID greater than after, in ID
-// order. UUIDv7 IDs make that creation order, so pages stay stable while
-// customers are added. more reports whether customers remain after the page.
-func (s *Store) List(ctx context.Context, after uuid.UUID, limit int) (page []Customer, more bool, err error) {
+// Filter selects customers. The zero value matches every customer; set
+// fields are combined with AND.
+type Filter struct {
+	NameContains string // case-insensitive substring
+	Email        string // case-insensitive exact match
+}
+
+func (f Filter) matches(c Customer) bool {
+	if f.NameContains != "" && !strings.Contains(strings.ToLower(c.Name), strings.ToLower(f.NameContains)) {
+		return false
+	}
+	if f.Email != "" && !strings.EqualFold(c.Email, f.Email) {
+		return false
+	}
+	return true
+}
+
+// List returns up to limit customers matching filter with an ID greater than
+// after, in ID order. UUIDv7 IDs make that creation order, so pages stay
+// stable while customers are added. more reports whether matching customers
+// remain after the page.
+func (s *Store) List(ctx context.Context, filter Filter, after uuid.UUID, limit int) (page []Customer, more bool, err error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, c := range s.byID {
-		if c.ID.Compare(after) > 0 {
+		if c.ID.Compare(after) > 0 && filter.matches(c) {
 			page = append(page, c)
 		}
 	}

@@ -5,6 +5,7 @@ import (
 	"uuid"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/telemac/connectrpc-v2-poc/internal/customer"
 )
@@ -93,13 +94,50 @@ func TestStoreListPagesInCreationOrder(t *testing.T) {
 		want = append(want, c)
 	}
 
-	first, more, err := store.List(t.Context(), uuid.Nil(), 2)
+	first, more, err := store.List(t.Context(), customer.Filter{}, uuid.Nil(), 2)
 	assert.NoError(err)
 	assert.True(more)
 	assert.Equal(want[:2], first)
 
-	second, more, err := store.List(t.Context(), first[1].ID, 2)
+	second, more, err := store.List(t.Context(), customer.Filter{}, first[1].ID, 2)
 	assert.NoError(err)
 	assert.False(more)
 	assert.Equal(want[2:], second)
+}
+
+func TestStoreListFilters(t *testing.T) {
+	store := customer.NewStore()
+	for _, c := range []struct{ name, email string }{
+		{"Ada Lovelace", "ada@example.com"},
+		{"Grace Hopper", "grace@example.com"},
+		{"Ada Byron", "byron@example.org"},
+	} {
+		_, err := store.Create(t.Context(), c.name, c.email)
+		require.NoError(t, err)
+	}
+
+	tests := []struct {
+		name   string
+		filter customer.Filter
+		want   []string
+	}{
+		{"zero filter matches all", customer.Filter{}, []string{"Ada Lovelace", "Grace Hopper", "Ada Byron"}},
+		{"name substring ignores case", customer.Filter{NameContains: "ADA"}, []string{"Ada Lovelace", "Ada Byron"}},
+		{"email exact ignores case", customer.Filter{Email: "Grace@Example.com"}, []string{"Grace Hopper"}},
+		{"fields combine with AND", customer.Filter{NameContains: "ada", Email: "byron@example.org"}, []string{"Ada Byron"}},
+		{"no match", customer.Filter{NameContains: "linus"}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			page, more, err := store.List(t.Context(), tt.filter, uuid.Nil(), 10)
+			assert.NoError(err)
+			assert.False(more)
+			var got []string
+			for _, c := range page {
+				got = append(got, c.Name)
+			}
+			assert.Equal(tt.want, got)
+		})
+	}
 }
