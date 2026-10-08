@@ -70,3 +70,15 @@ func TestStoreUpdateRejectsUnknownOrInvalid(t *testing.T) {
 	_, err = store.Update(t.Context(), created.ID, " ", "ada@example.com")
 	assert.ErrorIs(err, customer.ErrInvalid)
 }
+
+func TestStoreDeleteRemovesCustomer(t *testing.T) {
+	assert := assert.New(t)
+	store := customer.NewStore()
+	created, err := store.Create(t.Context(), "Ada", "ada@example.com")
+	assert.NoError(err)
+
+	assert.NoError(store.Delete(t.Context(), created.ID))
+	_, err = store.Get(t.Context(), created.ID)
+	assert.ErrorIs(err, customer.ErrNotFound)
+	assert.ErrorIs(store.Delete(t.Context(), created.ID), customer.ErrNotFound)
+}

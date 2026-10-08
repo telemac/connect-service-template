@@ -66,6 +66,20 @@ func TestUpdatedCustomerIsReturnedAndStored(t *testing.T) {
 	assert.Equal("ada@lovelace.org", got.GetCustomer().GetEmail())
 }
 
+func TestDeletedCustomerIsGone(t *testing.T) {
+	assert := assert.New(t)
+	client := newClient(t)
+	created, err := client.CreateCustomer(t.Context(), &customerv1.CreateCustomerRequest{Customer: &customerv1.Customer{Name: "Ada", Email: "ada@example.com"}})
+	assert.NoError(err)
+	id := created.GetCustomer().GetId()
+
+	_, err = client.DeleteCustomer(t.Context(), &customerv1.DeleteCustomerRequest{Id: id})
+	assert.NoError(err)
+
+	_, err = client.GetCustomer(t.Context(), &customerv1.GetCustomerRequest{Id: id})
+	assert.Equal(connect.CodeNotFound, codeOf(err))
+}
+
 func TestErrorsMapToConnectCodes(t *testing.T) {
 	tests := []struct {
 		name string
@@ -117,6 +131,22 @@ func TestErrorsMapToConnectCodes(t *testing.T) {
 				return err
 			},
 			want: connect.CodeNotFound,
+		},
+		{
+			name: "deleting an unknown customer is not found",
+			call: func(c customerv1connect.CustomerServiceClient) error {
+				_, err := c.DeleteCustomer(t.Context(), &customerv1.DeleteCustomerRequest{Id: uuid.NewV7().String()})
+				return err
+			},
+			want: connect.CodeNotFound,
+		},
+		{
+			name: "delete rejects a malformed id",
+			call: func(c customerv1connect.CustomerServiceClient) error {
+				_, err := c.DeleteCustomer(t.Context(), &customerv1.DeleteCustomerRequest{Id: "not-a-uuid"})
+				return err
+			},
+			want: connect.CodeInvalidArgument,
 		},
 		{
 			name: "unknown customer is not found",

@@ -31,6 +31,12 @@ service CustomerService {
       body: "customer"
     };
   }
+
+  // DeleteCustomer removes a customer. Deleting an unknown id is NotFound.
+  rpc DeleteCustomer(DeleteCustomerRequest) returns (DeleteCustomerResponse) {
+    option idempotency_level = IDEMPOTENT;
+    option (google.api.http) = {delete: "/v1/customers/{id}"};
+  }
 }
 
 // Customer carries the entity's constraints; requests embed it instead of
@@ -82,3 +88,9 @@ message UpdateCustomerRequest {
 message UpdateCustomerResponse {
   Customer customer = 1;
 }
+
+message DeleteCustomerRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message DeleteCustomerResponse {}

@@ -66,6 +66,19 @@ func TestCustomerIsReachableOverConnectAndREST(t *testing.T) {
 	got, err := client.GetCustomer(t.Context(), &customerv1.GetCustomerRequest{Id: id})
 	require.NoError(t, err)
 	assert.Equal("Ada Lovelace", got.GetCustomer().GetName())
+
+	// REST DELETE, then the customer is gone.
+	delReq, err := http.NewRequestWithContext(t.Context(), http.MethodDelete, srv.URL+"/v1/customers/"+id, nil)
+	require.NoError(t, err)
+	delResp, err := srv.Client().Do(delReq)
+	require.NoError(t, err)
+	defer delResp.Body.Close()
+	assert.Equal(http.StatusOK, delResp.StatusCode)
+
+	goneResp, err := srv.Client().Get(srv.URL + "/v1/customers/" + id)
+	require.NoError(t, err)
+	defer goneResp.Body.Close()
+	assert.Equal(http.StatusNotFound, goneResp.StatusCode)
 }
 
 func TestRESTRejectsInvalidInput(t *testing.T) {

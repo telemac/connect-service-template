@@ -58,6 +58,17 @@ func (h *Handler) UpdateCustomer(ctx context.Context, req *customerv1.UpdateCust
 	return &customerv1.UpdateCustomerResponse{Customer: toContract(c)}, nil
 }
 
+func (h *Handler) DeleteCustomer(ctx context.Context, req *customerv1.DeleteCustomerRequest) (*customerv1.DeleteCustomerResponse, error) {
+	id, err := uuid.Parse(req.GetId())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, "id must be a UUID")
+	}
+	if err := h.store.Delete(ctx, id); err != nil {
+		return nil, h.toConnectError(ctx, err)
+	}
+	return &customerv1.DeleteCustomerResponse{}, nil
+}
+
 func toContract(c customer.Customer) *customerv1.Customer {
 	return &customerv1.Customer{Id: c.ID.String(), Name: c.Name, Email: c.Email}
 }

@@ -86,3 +86,13 @@ func (s *Store) Update(ctx context.Context, id uuid.UUID, name, email string) (C
 	s.byID[id] = c
 	return c, nil
 }
+
+func (s *Store) Delete(ctx context.Context, id uuid.UUID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.byID[id]; !ok {
+		return fmt.Errorf("%w: %s", ErrNotFound, id)
+	}
+	delete(s.byID, id)
+	return nil
+}

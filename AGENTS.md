@@ -43,6 +43,8 @@ committed. Run `make generate` before building.
   <entity>; }`, REST `PUT /v1/<entities>/{id}`, `IDEMPOTENT`. The path id is
   the target; a message-level CEL rule rejects a non-empty body id that
   differs from it. No `update_mask` until an entity needs partial updates.
+- Deletes: `DELETE /v1/<entities>/{id}`, `IDEMPOTENT`, empty
+  `Delete<Entity>Response`. An unknown id is `NotFound`.
 - Only the `*rpc` adapter builds `*connect.Error`. Unknown errors are logged
   and returned as `CodeInternal` with no message.
 - Mapping is explicit (`toContract`, ...). No reflection-based mappers.
