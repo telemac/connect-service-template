@@ -42,3 +42,31 @@ func TestStoreReportsUnknownCustomer(t *testing.T) {
 	_, err := customer.NewStore().Get(t.Context(), uuid.NewV7())
 	assert.ErrorIs(err, customer.ErrNotFound)
 }
+
+func TestStoreUpdateReplacesFields(t *testing.T) {
+	assert := assert.New(t)
+	store := customer.NewStore()
+	created, err := store.Create(t.Context(), "Ada", "ada@example.com")
+	assert.NoError(err)
+
+	updated, err := store.Update(t.Context(), created.ID, "Ada Lovelace", "ada@lovelace.org")
+	assert.NoError(err)
+	assert.Equal(customer.Customer{ID: created.ID, Name: "Ada Lovelace", Email: "ada@lovelace.org"}, updated)
+
+	got, err := store.Get(t.Context(), created.ID)
+	assert.NoError(err)
+	assert.Equal(updated, got)
+}
+
+func TestStoreUpdateRejectsUnknownOrInvalid(t *testing.T) {
+	assert := assert.New(t)
+	store := customer.NewStore()
+	created, err := store.Create(t.Context(), "Ada", "ada@example.com")
+	assert.NoError(err)
+
+	_, err = store.Update(t.Context(), uuid.NewV7(), "Ada", "ada@example.com")
+	assert.ErrorIs(err, customer.ErrNotFound)
+
+	_, err = store.Update(t.Context(), created.ID, " ", "ada@example.com")
+	assert.ErrorIs(err, customer.ErrInvalid)
+}

@@ -52,6 +52,20 @@ func TestCustomerIsReachableOverConnectAndREST(t *testing.T) {
 	assert.NoError(json.NewDecoder(resp.Body).Decode(&body))
 	assert.Equal(id, body.Customer.ID)
 	assert.Equal("Ada", body.Customer.Name)
+
+	// REST PUT binds {id} from the path and the body to customer.
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPut, srv.URL+"/v1/customers/"+id,
+		strings.NewReader(`{"name":"Ada Lovelace","email":"ada@lovelace.org"}`))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	putResp, err := srv.Client().Do(req)
+	require.NoError(t, err)
+	defer putResp.Body.Close()
+	assert.Equal(http.StatusOK, putResp.StatusCode)
+
+	got, err := client.GetCustomer(t.Context(), &customerv1.GetCustomerRequest{Id: id})
+	require.NoError(t, err)
+	assert.Equal("Ada Lovelace", got.GetCustomer().GetName())
 }
 
 func TestRESTRejectsInvalidInput(t *testing.T) {

@@ -46,6 +46,18 @@ func (h *Handler) GetCustomer(ctx context.Context, req *customerv1.GetCustomerRe
 	return &customerv1.GetCustomerResponse{Customer: toContract(c)}, nil
 }
 
+func (h *Handler) UpdateCustomer(ctx context.Context, req *customerv1.UpdateCustomerRequest) (*customerv1.UpdateCustomerResponse, error) {
+	id, err := uuid.Parse(req.GetId())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, "id must be a UUID")
+	}
+	c, err := h.store.Update(ctx, id, req.GetCustomer().GetName(), req.GetCustomer().GetEmail())
+	if err != nil {
+		return nil, h.toConnectError(ctx, err)
+	}
+	return &customerv1.UpdateCustomerResponse{Customer: toContract(c)}, nil
+}
+
 func toContract(c customer.Customer) *customerv1.Customer {
 	return &customerv1.Customer{Id: c.ID.String(), Name: c.Name, Email: c.Email}
 }

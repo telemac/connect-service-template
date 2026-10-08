@@ -46,6 +46,26 @@ func TestCreatedCustomerCanBeFetched(t *testing.T) {
 	assert.Equal("ada@example.com", got.GetCustomer().GetEmail())
 }
 
+func TestUpdatedCustomerIsReturnedAndStored(t *testing.T) {
+	assert := assert.New(t)
+	client := newClient(t)
+	created, err := client.CreateCustomer(t.Context(), &customerv1.CreateCustomerRequest{Customer: &customerv1.Customer{Name: "Ada", Email: "ada@example.com"}})
+	assert.NoError(err)
+	id := created.GetCustomer().GetId()
+
+	updated, err := client.UpdateCustomer(t.Context(), &customerv1.UpdateCustomerRequest{
+		Id:       id,
+		Customer: &customerv1.Customer{Id: uuid.NewV7().String(), Name: "Ada Lovelace", Email: "ada@lovelace.org"},
+	})
+	assert.NoError(err)
+	assert.Equal(id, updated.GetCustomer().GetId(), "customer.id in the body must be ignored")
+
+	got, err := client.GetCustomer(t.Context(), &customerv1.GetCustomerRequest{Id: id})
+	assert.NoError(err)
+	assert.Equal("Ada Lovelace", got.GetCustomer().GetName())
+	assert.Equal("ada@lovelace.org", got.GetCustomer().GetEmail())
+}
+
 func TestErrorsMapToConnectCodes(t *testing.T) {
 	tests := []struct {
 		name string
@@ -67,6 +87,25 @@ func TestErrorsMapToConnectCodes(t *testing.T) {
 				return err
 			},
 			want: connect.CodeInvalidArgument,
+		},
+		{
+			name: "update requires the customer",
+			call: func(c customerv1connect.CustomerServiceClient) error {
+				_, err := c.UpdateCustomer(t.Context(), &customerv1.UpdateCustomerRequest{Id: uuid.NewV7().String()})
+				return err
+			},
+			want: connect.CodeInvalidArgument,
+		},
+		{
+			name: "updating an unknown customer is not found",
+			call: func(c customerv1connect.CustomerServiceClient) error {
+				_, err := c.UpdateCustomer(t.Context(), &customerv1.UpdateCustomerRequest{
+					Id:       uuid.NewV7().String(),
+					Customer: &customerv1.Customer{Name: "Ada", Email: "ada@example.com"},
+				})
+				return err
+			},
+			want: connect.CodeNotFound,
 		},
 		{
 			name: "unknown customer is not found",

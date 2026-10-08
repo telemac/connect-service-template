@@ -39,6 +39,10 @@ committed. Run `make generate` before building.
   `(buf.validate.field).required = true`. Server-assigned fields are
   `OUTPUT_ONLY` + `IGNORE_IF_ZERO_VALUE`, and handlers ignore their input value.
   Domain constructors still guard invariants.
+- Updates are full replacements: `Update<Entity>Request { string id; <Entity>
+  <entity>; }`, REST `PUT /v1/<entities>/{id}`, `IDEMPOTENT`. The path id is
+  the target; the body's id is ignored. No `update_mask` until an entity needs
+  partial updates.
 - Only the `*rpc` adapter builds `*connect.Error`. Unknown errors are logged
   and returned as `CodeInternal` with no message.
 - Mapping is explicit (`toContract`, ...). No reflection-based mappers.

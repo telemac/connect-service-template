@@ -26,6 +26,10 @@ type Customer struct {
 // New returns a customer with a fresh ID. The contract already validates
 // requests; these checks keep the invariants true for any other caller.
 func New(name, email string) (Customer, error) {
+	return build(uuid.NewV7(), name, email)
+}
+
+func build(id uuid.UUID, name, email string) (Customer, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return Customer{}, fmt.Errorf("%w: name is required", ErrInvalid)
@@ -33,7 +37,7 @@ func New(name, email string) (Customer, error) {
 	if !strings.Contains(email, "@") {
 		return Customer{}, fmt.Errorf("%w: email %q is malformed", ErrInvalid, email)
 	}
-	return Customer{ID: uuid.NewV7(), Name: name, Email: email}, nil
+	return Customer{ID: id, Name: name, Email: email}, nil
 }
 
 // Store keeps customers in memory. Persistence is out of scope for v1; a
@@ -65,5 +69,20 @@ func (s *Store) Get(ctx context.Context, id uuid.UUID) (Customer, error) {
 	if !ok {
 		return Customer{}, fmt.Errorf("%w: %s", ErrNotFound, id)
 	}
+	return c, nil
+}
+
+// Update replaces the mutable fields of an existing customer.
+func (s *Store) Update(ctx context.Context, id uuid.UUID, name, email string) (Customer, error) {
+	c, err := build(id, name, email)
+	if err != nil {
+		return Customer{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.byID[id]; !ok {
+		return Customer{}, fmt.Errorf("%w: %s", ErrNotFound, id)
+	}
+	s.byID[id] = c
 	return c, nil
 }

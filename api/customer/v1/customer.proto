@@ -22,6 +22,15 @@ service CustomerService {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (google.api.http) = {get: "/v1/customers/{id}"};
   }
+
+  // UpdateCustomer replaces every mutable field of an existing customer.
+  rpc UpdateCustomer(UpdateCustomerRequest) returns (UpdateCustomerResponse) {
+    option idempotency_level = IDEMPOTENT;
+    option (google.api.http) = {
+      put: "/v1/customers/{id}"
+      body: "customer"
+    };
+  }
 }
 
 // Customer carries the entity's constraints; requests embed it instead of
@@ -53,5 +62,16 @@ message GetCustomerRequest {
 }
 
 message GetCustomerResponse {
+  Customer customer = 1;
+}
+
+// UpdateCustomerRequest is a full replacement, so the entity rules on Customer
+// apply unchanged. The target is id; customer.id is ignored.
+message UpdateCustomerRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  Customer customer = 2 [(buf.validate.field).required = true];
+}
+
+message UpdateCustomerResponse {
   Customer customer = 1;
 }
