@@ -82,3 +82,24 @@ func TestStoreDeleteRemovesCustomer(t *testing.T) {
 	assert.ErrorIs(err, customer.ErrNotFound)
 	assert.ErrorIs(store.Delete(t.Context(), created.ID), customer.ErrNotFound)
 }
+
+func TestStoreListPagesInCreationOrder(t *testing.T) {
+	assert := assert.New(t)
+	store := customer.NewStore()
+	var want []customer.Customer
+	for _, name := range []string{"Ada", "Grace", "Linus"} {
+		c, err := store.Create(t.Context(), name, "x@example.com")
+		assert.NoError(err)
+		want = append(want, c)
+	}
+
+	first, more, err := store.List(t.Context(), uuid.Nil(), 2)
+	assert.NoError(err)
+	assert.True(more)
+	assert.Equal(want[:2], first)
+
+	second, more, err := store.List(t.Context(), first[1].ID, 2)
+	assert.NoError(err)
+	assert.False(more)
+	assert.Equal(want[2:], second)
+}

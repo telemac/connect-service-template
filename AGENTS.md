@@ -45,6 +45,11 @@ committed. Run `make generate` before building.
   differs from it. No `update_mask` until an entity needs partial updates.
 - Deletes: `DELETE /v1/<entities>/{id}`, `IDEMPOTENT`, empty
   `Delete<Entity>Response`. An unknown id is `NotFound`.
+- Lists: `GET /v1/<entities>`, `NO_SIDE_EFFECTS`, `page_size` (`gte: 0`;
+  0 = default 50, coerced to max 100) + opaque `page_token` /
+  `next_page_token` (empty on the last page). The token is the last UUIDv7
+  returned, so pages are stable in creation order. No filtering or sorting
+  until needed.
 - Only the `*rpc` adapter builds `*connect.Error`. Unknown errors are logged
   and returned as `CodeInternal` with no message.
 - Mapping is explicit (`toContract`, ...). No reflection-based mappers.

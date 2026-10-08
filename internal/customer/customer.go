@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"uuid"
@@ -95,4 +96,22 @@ func (s *Store) Delete(ctx context.Context, id uuid.UUID) error {
 	}
 	delete(s.byID, id)
 	return nil
+}
+
+// List returns up to limit customers with an ID greater than after, in ID
+// order. UUIDv7 IDs make that creation order, so pages stay stable while
+// customers are added. more reports whether customers remain after the page.
+func (s *Store) List(ctx context.Context, after uuid.UUID, limit int) (page []Customer, more bool, err error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, c := range s.byID {
+		if c.ID.Compare(after) > 0 {
+			page = append(page, c)
+		}
+	}
+	slices.SortFunc(page, func(a, b Customer) int { return a.ID.Compare(b.ID) })
+	if len(page) > limit {
+		return page[:limit], true, nil
+	}
+	return page, false, nil
 }

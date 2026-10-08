@@ -15,6 +15,11 @@ import (
 	"github.com/telemac/connectrpc-v2-poc/internal/customer"
 )
 
+const (
+	defaultPageSize = 50
+	maxPageSize     = 100
+)
+
 type Handler struct {
 	customerv1connect.UnimplementedCustomerServiceHandler
 	store  *customer.Store
@@ -44,6 +49,39 @@ func (h *Handler) GetCustomer(ctx context.Context, req *customerv1.GetCustomerRe
 		return nil, h.toConnectError(ctx, err)
 	}
 	return &customerv1.GetCustomerResponse{Customer: toContract(c)}, nil
+}
+
+// ListCustomers uses the last returned ID as the page token. Clients must
+// treat it as opaque so the encoding can change.
+func (h *Handler) ListCustomers(ctx context.Context, req *customerv1.ListCustomersRequest) (*customerv1.ListCustomersResponse, error) {
+	after := uuid.Nil()
+	if token := req.GetPageToken(); token != "" {
+		id, err := uuid.Parse(token)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, "invalid page_token")
+		}
+		after = id
+	}
+	size := int(req.GetPageSize())
+	switch {
+	case size == 0:
+		size = defaultPageSize
+	case size > maxPageSize:
+		size = maxPageSize
+	}
+
+	page, more, err := h.store.List(ctx, after, size)
+	if err != nil {
+		return nil, h.toConnectError(ctx, err)
+	}
+	resp := &customerv1.ListCustomersResponse{Customers: make([]*customerv1.Customer, 0, len(page))}
+	for _, c := range page {
+		resp.Customers = append(resp.Customers, toContract(c))
+	}
+	if more {
+		resp.NextPageToken = page[len(page)-1].ID.String()
+	}
+	return resp, nil
 }
 
 func (h *Handler) UpdateCustomer(ctx context.Context, req *customerv1.UpdateCustomerRequest) (*customerv1.UpdateCustomerResponse, error) {

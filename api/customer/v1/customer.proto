@@ -23,6 +23,12 @@ service CustomerService {
     option (google.api.http) = {get: "/v1/customers/{id}"};
   }
 
+  // ListCustomers pages through customers in creation order.
+  rpc ListCustomers(ListCustomersRequest) returns (ListCustomersResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (google.api.http) = {get: "/v1/customers"};
+  }
+
   // UpdateCustomer replaces every mutable field of an existing customer.
   rpc UpdateCustomer(UpdateCustomerRequest) returns (UpdateCustomerResponse) {
     option idempotency_level = IDEMPOTENT;
@@ -69,6 +75,20 @@ message GetCustomerRequest {
 
 message GetCustomerResponse {
   Customer customer = 1;
+}
+
+message ListCustomersRequest {
+  // Maximum number of customers to return. 0 means the server default (50);
+  // values above 100 are coerced to 100.
+  int32 page_size = 1 [(buf.validate.field).int32.gte = 0];
+  // Opaque token from a previous next_page_token. Empty for the first page.
+  string page_token = 2;
+}
+
+message ListCustomersResponse {
+  repeated Customer customers = 1;
+  // Empty when there are no more pages.
+  string next_page_token = 2;
 }
 
 // UpdateCustomerRequest is a full replacement, so the entity rules on Customer

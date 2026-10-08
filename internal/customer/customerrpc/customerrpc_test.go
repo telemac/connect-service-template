@@ -80,6 +80,32 @@ func TestDeletedCustomerIsGone(t *testing.T) {
 	assert.Equal(connect.CodeNotFound, codeOf(err))
 }
 
+func TestListCustomersFollowsPageTokens(t *testing.T) {
+	assert := assert.New(t)
+	client := newClient(t)
+	var want []string
+	for _, name := range []string{"Ada", "Grace", "Linus"} {
+		resp, err := client.CreateCustomer(t.Context(), &customerv1.CreateCustomerRequest{Customer: &customerv1.Customer{Name: name, Email: "x@example.com"}})
+		assert.NoError(err)
+		want = append(want, resp.GetCustomer().GetId())
+	}
+
+	var got []string
+	token := ""
+	for pages := 0; pages < 10; pages++ {
+		resp, err := client.ListCustomers(t.Context(), &customerv1.ListCustomersRequest{PageSize: 2, PageToken: token})
+		assert.NoError(err)
+		for _, c := range resp.GetCustomers() {
+			got = append(got, c.GetId())
+		}
+		token = resp.GetNextPageToken()
+		if token == "" {
+			break
+		}
+	}
+	assert.Equal(want, got)
+}
+
 func TestErrorsMapToConnectCodes(t *testing.T) {
 	tests := []struct {
 		name string
@@ -144,6 +170,22 @@ func TestErrorsMapToConnectCodes(t *testing.T) {
 			name: "delete rejects a malformed id",
 			call: func(c customerv1connect.CustomerServiceClient) error {
 				_, err := c.DeleteCustomer(t.Context(), &customerv1.DeleteCustomerRequest{Id: "not-a-uuid"})
+				return err
+			},
+			want: connect.CodeInvalidArgument,
+		},
+		{
+			name: "list rejects a negative page size",
+			call: func(c customerv1connect.CustomerServiceClient) error {
+				_, err := c.ListCustomers(t.Context(), &customerv1.ListCustomersRequest{PageSize: -1})
+				return err
+			},
+			want: connect.CodeInvalidArgument,
+		},
+		{
+			name: "list rejects a malformed page token",
+			call: func(c customerv1connect.CustomerServiceClient) error {
+				_, err := c.ListCustomers(t.Context(), &customerv1.ListCustomersRequest{PageToken: "garbage"})
 				return err
 			},
 			want: connect.CodeInvalidArgument,

@@ -67,6 +67,20 @@ func TestCustomerIsReachableOverConnectAndREST(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal("Ada Lovelace", got.GetCustomer().GetName())
 
+	// REST list, with query parameters mapped to request fields.
+	listResp, err := srv.Client().Get(srv.URL + "/v1/customers?page_size=10")
+	require.NoError(t, err)
+	defer listResp.Body.Close()
+	var list struct {
+		Customers []struct {
+			ID string `json:"id"`
+		} `json:"customers"`
+	}
+	assert.NoError(json.NewDecoder(listResp.Body).Decode(&list))
+	if assert.Len(list.Customers, 1) {
+		assert.Equal(id, list.Customers[0].ID)
+	}
+
 	// REST DELETE, then the customer is gone.
 	delReq, err := http.NewRequestWithContext(t.Context(), http.MethodDelete, srv.URL+"/v1/customers/"+id, nil)
 	require.NoError(t, err)
