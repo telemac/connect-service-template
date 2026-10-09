@@ -48,4 +48,4 @@ run: generate
 	go run ./cmd/server -reflection
 
 clean:
-	rm -rf gen ts/gen ts/node_modules internal/openapi/openapi.yaml
+	rm -rf gen ts/gen ts/dist ts/node_modules internal/openapi/openapi.yaml

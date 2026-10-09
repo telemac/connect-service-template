@@ -211,8 +211,7 @@ Met on 2026-10-09.
   Verified on a clean clone with an empty buf cache, and enforced by CI
   (`.github/workflows/check.yml`).
 
-Beyond v1, still open: a TypeScript client test against the server, and the
-`gonew` preparation (`docs/gonew.md`).
+Beyond v1, still open: the `gonew` preparation (`docs/gonew.md`).
 
 ## 11. Ecosystem check (2026-10-08)
 

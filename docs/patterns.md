@@ -205,7 +205,12 @@ Entities that are never edited (invoices) simply have no Update.
   validation rejected a request (not the handler): use an unknown id — the
   handler would answer `NotFound`, the interceptor answers `InvalidArgument`.
 - Server: `cmd/server/main_test.go` covers Connect over HTTP (binary), REST
-  routes, custom methods and the OpenAPI document.
+  routes, custom methods, CORS, health, reflection and the OpenAPI document.
+- TypeScript client: `ts/src/client.test.ts` (`node:test`) calls the real
+  generated client against a server started by
+  `cmd/server/typescript_test.go`, which runs `npm test` with `BASE_URL`; it
+  is skipped with `-short` or before `make setup`. By hand: `make run`, then
+  `BASE_URL=http://localhost:8080 npm test` in `ts/`.
 - `assert := assert.New(t)` per test; `require` for setup that must not fail.
 
 ## 13. Tooling notes

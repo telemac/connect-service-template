@@ -76,6 +76,8 @@ Examples to copy:
 - Context is the first parameter of anything that does or may do I/O.
 - Tests: table-driven, `assert := assert.New(t)`, `require` for setup,
   adapters tested through `connectinprocess` with the validate interceptor.
+  The TypeScript client is tested against a real server from `go test`
+  (patterns §12).
 
 ## Recipe: add an entity
 
