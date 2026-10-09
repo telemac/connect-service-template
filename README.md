@@ -15,8 +15,10 @@ make run
 ```bash
 curl -X POST localhost:8080/v1/customers -d '{"name":"Ada","email":"ada@example.com"}'
 curl localhost:8080/v1/customers/<id>
+curl -X POST localhost:8080/v1/invoices -d '{"customerId":"<id>","amountCents":"1250","currency":"EUR"}'
+curl -X POST localhost:8080/v1/invoices/<invoice-id>:issue -d '{}'
 curl localhost:8080/openapi.yaml
 ```
 
 - Why: [docs/intent.md](docs/intent.md)
-- How (humans and agents): [AGENTS.md](AGENTS.md)
+- How (humans and agents): [AGENTS.md](AGENTS.md), then [docs/patterns.md](docs/patterns.md)

@@ -2,7 +2,9 @@
 
 Go service boilerplate. Entities are defined once in Protobuf (`api/`) and
 served over Connect, gRPC, gRPC-Web and REST from a single `connect.Server`
-(connect-go v2). Read `docs/intent.md` for the why; this file is the how.
+(connect-go v2). `docs/intent.md` explains why; `docs/patterns.md` details
+every convention below. Read the relevant section of `docs/patterns.md`
+before changing a contract.
 
 ## Commands
 
@@ -22,77 +24,69 @@ committed. Run `make generate` before building.
 |---|---|
 | `api/<context>/v1/*.proto` | Source of truth: entities, RPCs, validation, REST routes |
 | `internal/<context>/` | Domain: plain Go types, invariants, operations |
-| `internal/<context>/<context>rpc/` | Adapter: Connect handler + contract ↔ domain mappers |
+| `internal/<context>/<context>rpc/` | Adapter: Connect handler, mappers, error mapping |
+| `internal/pagetoken/` | Opaque List page tokens bound to their parameters |
+| `internal/openapi/` | Embeds the generated OpenAPI document |
 | `cmd/server/` | Wiring: builds dependencies, mounts every protocol |
 | `ts/` | Generated TypeScript client package |
-| `docs/` | Intent and decisions (ADRs) |
+| `docs/` | Intent, patterns, decisions (ADRs) |
 
-`customer` is the canonical example. Copy it.
+Examples to copy:
+
+- `customer` — standard methods: Create, Get, List (filters, sort,
+  pagination), partial Update with `update_mask`, Delete.
+- `invoice` — references a customer, status state machine with custom
+  methods (`:issue`, `:pay`, `:void`), timestamps, money; no Update/Delete.
 
 ## Rules
 
 - Never edit generated code. Change the `.proto`, then `make generate`.
 - Domain packages import no `connectrpc.com/...`, no `gen/go/...`, no
-  `net/http`. `make boundaries` enforces it.
-- Structural validation goes in the `.proto` (protovalidate). Field rules
-  (format, length) live on the entity message with `IGNORE_IF_ZERO_VALUE`, so
-  they apply whenever a field is set. Presence depends on the request, so it
-  is enforced there with message-level CEL: always on create, only for fields
-  in the mask on update. Mark such fields `(google.api.field_behavior) =
-  REQUIRED`. Requests embed the entity with `(buf.validate.field).required =
-  true`. Server-assigned fields are `OUTPUT_ONLY` + `IGNORE_IF_ZERO_VALUE`, and
-  handlers ignore their input value. Domain constructors still guard
-  invariants.
-- Updates follow AIP-134: `Update<Entity>Request { string id; <Entity>
-  <entity>; google.protobuf.FieldMask update_mask; }`, REST
-  `PATCH /v1/<entities>/{id}`, `IDEMPOTENT`. Omitted mask = populated fields,
-  `*` = every mutable field, output-only paths are ignored (AIP-203), unknown
-  paths are rejected by `field_mask.in`. The domain takes a `Change` struct of
-  pointers (nil = keep) and merges under one lock. The path id is the target;
-  a CEL rule rejects a non-empty body id that differs from it.
-- Deletes: `DELETE /v1/<entities>/{id}`, `IDEMPOTENT`, empty
-  `Delete<Entity>Response`. An unknown id is `NotFound`.
-- Lists: `GET /v1/<entities>`, `NO_SIDE_EFFECTS`, `page_size` (`gte: 0`;
-  0 = default 1000, coerced to max 10000; AIP-158) + opaque `page_token` /
-  `next_page_token` (empty on the last page). The token is base64 JSON of
-  the filters and order plus the last (sort key, UUIDv7 id) returned: keyset
-  pagination, stable while rows are added, rejected if replayed with other
-  filters or another order.
-  Sorting is a typed enum `order_by` (`<ENTITY>_ORDER_UNSPECIFIED` = creation)
-  + `bool descending`; ties break on id. Filters are typed request
-  fields (e.g. `name_contains`, `email`), validated like any other field and
-  combined with AND; the domain receives them as a `Filter` struct whose zero
-  value matches everything. No AIP-160 `filter` or AIP-132 `order_by`
-  strings.
-- Only the `*rpc` adapter builds `*connect.Error`. Unknown errors are logged
-  and returned as `CodeInternal` with no message.
-- Mapping is explicit (`toContract`, ...). No reflection-based mappers.
+  `net/http`, and no other domain package; they reference other contexts
+  through a small interface they declare. `make boundaries` checks imports.
+- Each RPC has its own `<Method>Request` / `<Method>Response`.
+- Validation (patterns §4): field rules on the entity with
+  `IGNORE_IF_ZERO_VALUE`; presence enforced on the request with CEL;
+  invariants in the domain. Output-only fields are never read from input.
+- Updates are AIP-134 partial updates (patterns §5). Status changes go
+  through custom methods, never updates (patterns §7).
+- Lists use typed filters, a typed sort enum and `internal/pagetoken`
+  (patterns §6).
+- Only adapters build `*connect.Error`; domain errors are sentinels mapped
+  with `errors.Is` (patterns §9). Unknown errors are logged and returned as
+  `Internal` with no message.
+- Mapping is explicit (`toContract`, `toChange`, ...). No reflection.
+- Ids are `uuid.NewV7()`; money is `int64` minor units + ISO 4217 code; time
+  is `time.Time` ↔ `google.protobuf.Timestamp`.
 - Dependencies are passed through constructors and wired in `cmd/server`.
   No package-level mutable state, no `init()`.
 - Logging: `log/slog` only, structured attributes, logger passed explicitly.
 - Context is the first parameter of anything that does or may do I/O.
-- Tests: table-driven, `assert := assert.New(t)`, Connect handlers tested
-  through `connectinprocess`.
+- Tests: table-driven, `assert := assert.New(t)`, `require` for setup,
+  adapters tested through `connectinprocess` with the validate interceptor.
 
 ## Recipe: add an entity
 
-1. Create `api/<context>/v1/<context>.proto` from `api/customer/v1/customer.proto`
+1. Pick the closest example (`customer` for CRUD, `invoice` for a lifecycle
+   or a reference) and copy its `.proto` to `api/<context>/v1/<context>.proto`
    (package `<context>.v1`, `go_package` under `gen/go/<context>/v1`).
-2. Put field rules on the entity message; `Create<Entity>Request` embeds it
-   (REST `body: "<entity>"`) and requires its REQUIRED fields with CEL. Add
-   `google.api.http` routes. Mark read-only RPCs `NO_SIDE_EFFECTS`.
+2. Adapt the entity: field rules with `IGNORE_IF_ZERO_VALUE`, field
+   behaviors, CEL presence rules on the requests, `google.api.http` routes,
+   idempotency levels (patterns §3).
 3. `make generate`.
-4. Create `internal/<context>/` with the domain type, constructor, sentinel
-   errors and operations. Test it.
-5. Create `internal/<context>/<context>rpc/` with the handler, mappers and
-   error mapping. Test it with `connectinprocess`.
-6. Register the handler in `newHandler` in `cmd/server/main.go`.
+4. Create `internal/<context>/`: domain type, sentinel errors, `Store`
+   operations, `Filter`. Test it.
+5. Create `internal/<context>/<context>rpc/`: handler, mappers, error mapping,
+   list parameters bound to page tokens. Test it with `connectinprocess`.
+6. Construct the store and register the handler in `newHandler` in
+   `cmd/server/main.go`; add a REST case to `cmd/server/main_test.go`.
 7. `make check`.
 
 ## Recipe: add an RPC
 
 1. Add the RPC and its dedicated `<Method>Request` / `<Method>Response`
-   messages to the existing `.proto`. Never reuse a field number.
+   messages. Never reuse a field number.
 2. `make generate`; the compiler then points at the handler to complete.
-3. Add the domain operation, then the handler method. Test both.
+3. Add the domain operation, then the handler method and any new error
+   mapping. Test both.
 4. `make check`.
