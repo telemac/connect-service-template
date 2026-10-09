@@ -1,6 +1,8 @@
 package customer_test
 
 import (
+	"fmt"
+	"sync"
 	"testing"
 	"uuid"
 
@@ -70,6 +72,38 @@ func TestStoreUpdateAppliesOnlyChangedFields(t *testing.T) {
 			assert.Equal(tt.want, got)
 		})
 	}
+}
+
+// TestStoreUpdateIsSafeForConcurrentPartialUpdates runs partial updates of
+// different fields concurrently. Under -race it catches unsynchronized access
+// to the store, and it checks both fields end up updated. It does not
+// reliably catch a lost update from a read-merge-write split across two
+// locked sections (verified: such a bug passes); that is prevented by keeping
+// read, merge and write in Store.Update's single critical section.
+func TestStoreUpdateIsSafeForConcurrentPartialUpdates(t *testing.T) {
+	assert := assert.New(t)
+	store := customer.NewStore()
+	created, err := store.Create(t.Context(), "Ada", "ada@example.com")
+	require.NoError(t, err)
+
+	const n = 100
+	var wg sync.WaitGroup
+	for i := range n {
+		wg.Go(func() {
+			_, err := store.Update(t.Context(), created.ID, customer.Change{Name: new(fmt.Sprintf("name-%d", i))})
+			assert.NoError(err)
+		})
+		wg.Go(func() {
+			_, err := store.Update(t.Context(), created.ID, customer.Change{Email: new(fmt.Sprintf("e%d@example.com", i))})
+			assert.NoError(err)
+		})
+	}
+	wg.Wait()
+
+	got, err := store.Get(t.Context(), created.ID)
+	assert.NoError(err)
+	assert.NotEqual("Ada", got.Name)
+	assert.NotEqual("ada@example.com", got.Email)
 }
 
 func TestStoreUpdateRejectsUnknownOrInvalid(t *testing.T) {
