@@ -1,7 +1,11 @@
-.PHONY: setup generate lint boundaries check run clean
+.PHONY: setup update-deps generate lint boundaries check run clean
 
+# Installs exactly what the lockfiles pin; buf resolves api/buf.lock on demand.
 setup:
-	cd ts && npm install
+	cd ts && npm ci
+
+# Moves buf dependencies to their latest versions; commit api/buf.lock after.
+update-deps:
 	cd api && buf dep update
 
 # Generated code is not committed: run this after cloning and after every

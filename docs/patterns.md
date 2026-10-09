@@ -191,6 +191,10 @@ Entities that are never edited (invoices) simply have no Update.
 
 - Generated code is not committed; `make generate` first, `make check` before
   committing.
+- Dependencies come from lockfiles only: `make setup` runs `npm ci`, and buf
+  reads `api/buf.lock` on demand. Upgrading is explicit (`make update-deps`,
+  `npm update` in `ts/`, `go get`). CI pins the buf CLI version and fails on
+  any drift (`go mod tidy -diff`, `git diff --exit-code`).
 - Go plugins are pinned by the `tool` directive in `go.mod`
   (`go tool protoc-gen-go`); `protoc-gen-es` by `ts/package.json`.
 - `buf` config lives in `api/`; outputs use `module=` with the full

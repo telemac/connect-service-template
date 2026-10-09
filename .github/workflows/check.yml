@@ -1,0 +1,33 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ts/package-lock.json
+      - uses: bufbuild/buf-action@v1
+        with:
+          version: 1.70.0
+          setup_only: true
+      - run: make setup
+      - run: make check
+      # Generated code is ignored, so any diff here means a lockfile or
+      # go.mod drifted, or a check rewrote a tracked file.
+      - run: go mod tidy -diff
+      - run: git diff --exit-code
