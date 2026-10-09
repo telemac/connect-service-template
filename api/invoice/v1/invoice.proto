@@ -7,7 +7,6 @@ import "google/api/annotations.proto";
 import "google/api/field_behavior.proto";
 import "google/protobuf/timestamp.proto";
 
-
 // InvoiceService manages invoices. It is the second example entity: it
 // references another entity (Customer), has a status state machine driven by
 // custom methods (AIP-136), and deliberately has no Update or Delete — an

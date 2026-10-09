@@ -1,4 +1,4 @@
-.PHONY: setup update-deps rename generate lint boundaries staticcheck breaking check run clean
+.PHONY: setup update-deps rename fmt fmt-check generate lint boundaries staticcheck breaking check run clean
 
 STATICCHECK_VERSION := 2026.2.1
 # Git ref the contract is compared against; CI passes the pull request base.
@@ -28,6 +28,15 @@ generate:
 	rm -rf gen ts/gen internal/openapi/openapi.yaml
 	cd api && buf generate
 
+# Rewrites Go and proto sources to their canonical format.
+fmt:
+	gofmt -w cmd internal
+	cd api && buf format -w
+
+fmt-check:
+	@test -z "$$(gofmt -l cmd internal)" || { gofmt -l cmd internal; echo "Go files not formatted: run make fmt"; exit 1; }
+	@cd api && buf format -d --exit-code || { echo "proto files not formatted: run make fmt"; exit 1; }
+
 lint:
 	cd api && buf lint
 
@@ -48,7 +57,7 @@ staticcheck:
 breaking:
 	buf breaking api --against '.git#ref=$(BREAKING_AGAINST),subdir=api'
 
-check: lint generate boundaries
+check: fmt-check lint generate boundaries
 	go vet ./...
 	go test -race ./...
 	$(MAKE) staticcheck

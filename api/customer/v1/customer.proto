@@ -7,7 +7,6 @@ import "google/api/annotations.proto";
 import "google/api/field_behavior.proto";
 import "google/protobuf/field_mask.proto";
 
-
 // CustomerService manages customers. It is the canonical example entity of
 // this boilerplate: copy it when adding a new one.
 service CustomerService {
