@@ -2,15 +2,37 @@
 # go.mod; protoc-gen-es is pinned by ts/package.json.
 version: v2
 
+# Managed mode derives every go_package from one prefix, so the module path
+# appears only here (the .proto files carry none). make rename rewrites it
+# from go.mod; make generate fails if they disagree.
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/telemac/connectrpc-v2-poc/gen/go
+  disable:
+    # Dependencies keep the go_package they were published with.
+    - module: buf.build/bufbuild/protovalidate
+    - module: buf.build/googleapis/googleapis
+    # Only go_package is wanted; managed mode would otherwise add options for
+    # other languages to every embedded descriptor.
+    - file_option: java_package
+    - file_option: java_outer_classname
+    - file_option: java_multiple_files
+    - file_option: objc_class_prefix
+    - file_option: csharp_namespace
+    - file_option: php_namespace
+    - file_option: php_metadata_namespace
+    - file_option: ruby_package
+
 plugins:
   - local: [go, tool, protoc-gen-go]
     out: ../gen/go
-    # module= strips this prefix from go_package; it must include the out path.
-    opt: module=github.com/telemac/connectrpc-v2-poc/gen/go
+    opt: paths=source_relative
 
   - local: [go, tool, protoc-gen-connect-go]
     out: ../gen/go
-    opt: module=github.com/telemac/connectrpc-v2-poc/gen/go
+    opt: paths=source_relative
 
   # Written next to its go:embed so the server binary carries the document.
   - local: [go, tool, protoc-gen-connect-openapi]

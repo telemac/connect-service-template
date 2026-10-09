@@ -7,7 +7,6 @@ import "google/api/annotations.proto";
 import "google/api/field_behavior.proto";
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/telemac/connectrpc-v2-poc/gen/go/invoice/v1;invoicev1";
 
 // InvoiceService manages invoices. It is the second example entity: it
 // references another entity (Customer), has a status state machine driven by
