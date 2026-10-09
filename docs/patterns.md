@@ -195,6 +195,12 @@ Entities that are never edited (invoices) simply have no Update.
   reads `api/buf.lock` on demand. Upgrading is explicit (`make update-deps`,
   `npm update` in `ts/`, `go get`). CI pins the buf CLI version and fails on
   any drift (`go mod tidy -diff`, `git diff --exit-code`).
+- `staticcheck` runs through `go run …@version` (pinned in the `Makefile`),
+  so it needs no `tool` entry in `go.mod`.
+- `make breaking` runs `buf breaking` with the `FILE` rules of
+  `api/buf.yaml` against a git ref (`main` locally, the pull request base in
+  CI). Removing or renumbering a field, or changing its type, fails; adding
+  fields or RPCs passes.
 - Go plugins are pinned by the `tool` directive in `go.mod`
   (`go tool protoc-gen-go`); `protoc-gen-es` by `ts/package.json`.
 - `buf` config lives in `api/`; outputs use `module=` with the full

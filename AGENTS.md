@@ -13,13 +13,16 @@ before changing a contract.
 | `make setup` | Install TS deps from the lockfile (once after clone) |
 | `make update-deps` | Move buf deps to their latest versions (commit `api/buf.lock`) |
 | `make generate` | Regenerate Go, TS and OpenAPI from `api/` |
-| `make check` | lint, generate, boundary check, vet, race tests, TS typecheck |
+| `make check` | lint, generate, boundary check, vet, race tests, staticcheck, TS typecheck |
+| `make breaking` | Fail on incompatible `api/` changes since `main` (`BREAKING_AGAINST=<ref>`) |
 | `make run` | Start the server on `:8080` |
 
 Generated code (`gen/`, `ts/gen/`, `internal/openapi/openapi.yaml`) is not
 committed. Run `make generate` before building. CI
-(`.github/workflows/check.yml`) runs `make setup check` on a fresh clone, then
-fails if `go mod tidy` or any tracked file would change.
+(`.github/workflows/check.yml`) runs `make setup check` on a fresh clone,
+`make breaking` against the pull request base, then fails if `go mod tidy` or
+any tracked file would change. An intentional breaking change needs a new
+package version (`<context>.v2`), not an edit of `v1`.
 
 ## Layout
 
