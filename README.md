@@ -44,6 +44,7 @@ reflection:
 ```bash
 grpcurl -plaintext localhost:8080 list
 grpcurl -plaintext localhost:8080 grpc.health.v1.Health/Check
+curl localhost:8080/healthz   # plain HTTP probe
 ```
 
 ```bash

@@ -2,7 +2,7 @@
 
 The detailed conventions behind `AGENTS.md`. Each section names the example
 that implements it; read the code next to the rule. Why each convention
-exists is in `docs/decisions/` (ADRs 0001–0012).
+exists is in `docs/decisions/` (ADRs 0001–0013).
 
 - `customer` — standard methods: Create, Get, List (filters, sort, pagination),
   partial Update, Delete.
@@ -103,8 +103,11 @@ message UpdateCustomerRequest {
 - A non-empty `customer.id` that differs from `id` is rejected (CEL), so a
   client bug cannot update the wrong entity.
 - The adapter turns the mask into a domain `Change` struct of pointers
-  (`nil` = keep); the store merges and validates under one lock, so
-  concurrent partial updates do not lose fields.
+  (`nil` = keep); the store reads, merges and writes in one critical section,
+  so concurrent partial updates do not lose fields. The concurrency test
+  catches unsynchronized access under `-race`; it cannot reliably catch a
+  lost update from a read and a write in two separate locked sections, so
+  keep them in one.
 
 Entities that are never edited (invoices) simply have no Update.
 
@@ -182,7 +185,12 @@ Entities that are never edited (invoices) simply have no Update.
 - The server speaks HTTP/1.1 and HTTP/2 without TLS (h2c), so plaintext gRPC
   clients work; terminate TLS in front of it.
 - gRPC health (`grpc.health.v1.Health`) is always on: overall (`""`) and per
-  service. Add each new service name to the checker in `newHandler`.
+  service. Add each new service name to the checker in `newHandler`. Plain
+  HTTP probes use `GET /healthz` (same checker, `200 ok` or `503`).
+- Every unary call gets a 30 s deadline from a server interceptor, on every
+  protocol; streams are unbounded. `http.Server` sets only
+  `ReadHeaderTimeout` and `IdleTimeout`, since read/write timeouts would cut
+  streams (ADR 0013).
 - gRPC reflection is off unless `-reflection` (on in `make run`); it exposes
   every compiled-in type. `grpcurl -plaintext localhost:8080 list` then
   describes the API.
@@ -204,8 +212,10 @@ Entities that are never edited (invoices) simply have no Update.
   contract rules are exercised without a network listener. A good check that
   validation rejected a request (not the handler): use an unknown id — the
   handler would answer `NotFound`, the interceptor answers `InvalidArgument`.
-- Server: `cmd/server/main_test.go` covers Connect over HTTP (binary), REST
-  routes, custom methods, CORS, health, reflection and the OpenAPI document.
+- Server: `cmd/server/main_test.go` calls the business service over every
+  RPC protocol (Connect binary and JSON, gRPC over h2c, gRPC-Web) and REST,
+  and covers custom methods, CORS, health (`/healthz` too), reflection, the
+  unary timeout and the OpenAPI document.
 - TypeScript client: `ts/src/client.test.ts` (`node:test`) calls the real
   generated client against a server started by
   `cmd/server/typescript_test.go`, which runs `npm test` with `BASE_URL`; it
@@ -217,6 +227,8 @@ Entities that are never edited (invoices) simply have no Update.
 
 - Generated code is not committed; `make generate` first, `make check` before
   committing.
+- `make check` starts with `fmt-check` (`gofmt -l`, `buf format -d
+  --exit-code`); `make fmt` rewrites both.
 - Dependencies come from lockfiles only: `make setup` runs `npm ci`, and buf
   reads `api/buf.lock` on demand. Upgrading is explicit (`make update-deps`,
   `npm update` in `ts/`, `go get`). CI pins the buf CLI version and fails on

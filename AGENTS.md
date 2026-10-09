@@ -14,7 +14,8 @@ before changing a contract.
 | `make rename` | Point buf's `go_package_prefix` at the module in `go.mod` (after `gonew`) |
 | `make update-deps` | Move buf deps to their latest versions (commit `api/buf.lock`) |
 | `make generate` | Regenerate Go, TS and OpenAPI from `api/` |
-| `make check` | lint, generate, boundary check, vet, race tests, staticcheck, TS typecheck |
+| `make check` | format check, lint, generate, boundary check, vet, race tests, staticcheck, TS typecheck |
+| `make fmt` | Format Go (`gofmt`) and proto (`buf format`) sources |
 | `make breaking` | Fail on incompatible `api/` changes since `main` (`BREAKING_AGAINST=<ref>`) |
 | `make run` | Start the server on `:8080`, with gRPC reflection |
 

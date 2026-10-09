@@ -244,6 +244,7 @@ next tag. This does not justify falling back to Huma.
 | TS generation location | Self-contained `ts/` | Keeps npm files out of the root. |
 | Dependency installation | Lockfiles only (`npm ci`, `buf.lock`) | Reproducible clones and CI (ADR 0002). |
 | staticcheck | `go run …@version` pinned in the `Makefile` | Same version locally and in CI, no `go.mod` entry. |
+| Formatting | `make check` fails on unformatted Go or proto (`gofmt`, `buf format`) | Catches drift that lint does not. |
 | Breaking-change detection | `make breaking` against the pull request base in CI | The reason to choose proto (§6) only holds if it is checked. |
 
 ## 13. References
@@ -268,3 +269,4 @@ next tag. This does not justify falling back to Huma.
   | [0010](decisions/0010-cors-opt-in.md) | CORS is opt-in |
   | [0011](decisions/0011-distribution-as-template.md) | Distribute as a gonew template, not a library |
   | [0012](decisions/0012-health-reflection-h2c.md) | gRPC health always on, reflection opt-in, HTTP/2 without TLS |
+  | [0013](decisions/0013-timeouts-and-http-health.md) | Unary calls are time-bounded; health is also served over plain HTTP |

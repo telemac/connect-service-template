@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect/v2"
 	"connectrpc.com/connect/v2/connecthttp"
@@ -277,4 +279,77 @@ func TestReflectionIsOptIn(t *testing.T) {
 			assert.Equal(connect.CodeUnimplemented, connectErr.Code())
 		}
 	})
+}
+
+// TestCustomerOverEveryRPCProtocol calls the business service through each
+// RPC protocol the server promises; REST is covered above.
+func TestCustomerOverEveryRPCProtocol(t *testing.T) {
+	srv := newTestServer(t, options{})
+	tests := []struct {
+		name   string
+		client *http.Client
+		opts   []connecthttp.Option
+	}{
+		{"connect binary", srv.Client(), nil},
+		{"connect json", srv.Client(), []connecthttp.Option{connecthttp.WithProtoJSON()}},
+		{"grpc over h2c", h2cClient(), []connecthttp.Option{connecthttp.WithGRPC()}},
+		{"grpc-web", srv.Client(), []connecthttp.Option{connecthttp.WithGRPCWeb()}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			client := customerv1connect.NewCustomerServiceClient(connect.NewClient(connecthttp.NewTransport(tt.client, srv.URL, tt.opts...)))
+
+			created, err := client.CreateCustomer(t.Context(), &customerv1.CreateCustomerRequest{Customer: &customerv1.Customer{Name: "Ada", Email: "ada@example.com"}})
+			require.NoError(t, err)
+			got, err := client.GetCustomer(t.Context(), &customerv1.GetCustomerRequest{Id: created.GetCustomer().GetId()})
+			assert.NoError(err)
+			assert.Equal("Ada", got.GetCustomer().GetName())
+
+			// Errors keep their code on every protocol.
+			_, err = client.CreateCustomer(t.Context(), &customerv1.CreateCustomerRequest{Customer: &customerv1.Customer{Name: "Ada", Email: "x"}})
+			connectErr, ok := errors.AsType[*connect.Error](err)
+			if assert.True(ok, "want a *connect.Error, got %v", err) {
+				assert.Equal(connect.CodeInvalidArgument, connectErr.Code())
+			}
+		})
+	}
+}
+
+func TestUnaryTimeoutBoundsOnlyUnaryCalls(t *testing.T) {
+	tests := []struct {
+		name         string
+		streamType   connect.StreamType
+		wantDeadline bool
+	}{
+		{"unary gets a deadline", connect.StreamTypeUnary, true},
+		{"server stream is left unbounded", connect.StreamTypeServer, false},
+		{"bidi stream is left unbounded", connect.StreamTypeBidi, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			var hasDeadline bool
+			next := func(ctx context.Context, _ connect.Spec, _ connect.ServerStream) error {
+				_, hasDeadline = ctx.Deadline()
+				return nil
+			}
+			err := unaryTimeout(time.Minute)(next)(t.Context(), connect.Spec{StreamType: tt.streamType}, nil)
+			assert.NoError(err)
+			assert.Equal(tt.wantDeadline, hasDeadline)
+		})
+	}
+}
+
+func TestHealthzForPlainHTTPProbes(t *testing.T) {
+	assert := assert.New(t)
+	srv := newTestServer(t, options{})
+
+	resp, err := srv.Client().Get(srv.URL + "/healthz")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(err)
+	assert.Equal(http.StatusOK, resp.StatusCode)
+	assert.Equal("ok\n", string(body))
 }

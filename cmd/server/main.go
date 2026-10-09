@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -83,11 +84,14 @@ func run(ctx context.Context, addr string, opts options, logger *slog.Logger) er
 	if err != nil {
 		return err
 	}
+	// No ReadTimeout or WriteTimeout: they would cut streams (reflection,
+	// health Watch). Unary calls are bounded by unaryTimeout instead.
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           handler,
 		Protocols:         protocols(),
 		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       2 * time.Minute,
 	}
 
 	errc := make(chan error, 1)
@@ -121,15 +125,16 @@ func newHandler(logger *slog.Logger, opts options) (http.Handler, error) {
 	customers := customer.NewStore()
 	invoices := invoice.NewStore(customers)
 
-	server := connect.NewServer(validate.NewServerInterceptor())
+	server := connect.NewServer(unaryTimeout(30*time.Second), validate.NewServerInterceptor())
 	customerv1connect.RegisterCustomerServiceHandler(server, customerrpc.NewHandler(customers, logger))
 	invoicev1connect.RegisterInvoiceServiceHandler(server, invoicerpc.NewHandler(invoices, logger))
 
 	// Standard gRPC health checks: the overall server ("") and each service.
-	grpchealth.Register(server, grpchealth.NewStaticChecker(
+	health := grpchealth.NewStaticChecker(
 		customerv1connect.CustomerServiceName,
 		invoicev1connect.InvoiceServiceName,
-	))
+	)
+	grpchealth.Register(server, health)
 	if opts.Reflection {
 		// The default namer skips methods without a protobuf schema, and
 		// grpchealth/v2 registers none, so Health would be missing from
@@ -146,6 +151,18 @@ func newHandler(logger *slog.Logger, opts options) (http.Handler, error) {
 	if err := vanguard.Mount(mux, server); err != nil {
 		return nil, fmt.Errorf("mounting rest routes: %w", err)
 	}
+	// Plain HTTP probe for load balancers that cannot speak gRPC or Connect;
+	// it reports the same overall status as grpc.health.v1.
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := health.Check(r.Context(), &grpchealth.CheckRequest{})
+		if err != nil || resp.Status != grpchealth.StatusServing {
+			http.Error(w, "not serving", http.StatusServiceUnavailable)
+			return
+		}
+		if _, err := io.WriteString(w, "ok\n"); err != nil {
+			logger.WarnContext(r.Context(), "writing health response", "error", err)
+		}
+	})
 	mux.HandleFunc("GET /openapi.yaml", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/yaml")
 		if _, err := w.Write(openapi.Document); err != nil {
@@ -153,6 +170,22 @@ func newHandler(logger *slog.Logger, opts options) (http.Handler, error) {
 		}
 	})
 	return withCORS(mux, opts.CORSOrigins), nil
+}
+
+// unaryTimeout bounds every unary call, whatever the protocol, so a slow
+// dependency cannot hold a request forever. Streams are left unbounded.
+// Handlers must pass ctx down for the deadline to take effect.
+func unaryTimeout(d time.Duration) connect.ServerInterceptor {
+	return func(next connect.ServerFunc) connect.ServerFunc {
+		return func(ctx context.Context, spec connect.Spec, stream connect.ServerStream) error {
+			if spec.StreamType != connect.StreamTypeUnary {
+				return next(ctx, spec, stream)
+			}
+			ctx, cancel := context.WithTimeout(ctx, d)
+			defer cancel()
+			return next(ctx, spec, stream)
+		}
+	}
 }
 
 // serviceNames lists the services registered on server, derived from their
