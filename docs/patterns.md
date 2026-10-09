@@ -229,8 +229,10 @@ Entities that are never edited (invoices) simply have no Update.
   fields or RPCs passes.
 - Go plugins are pinned by the `tool` directive in `go.mod`
   (`go tool protoc-gen-go`); `protoc-gen-es` by `ts/package.json`.
-- `buf` config lives in `api/`; outputs use `module=` with the full
-  `gen/go` prefix.
+- `buf` config lives in `api/`. Managed mode sets `go_package` from one
+  `go_package_prefix` (the `.proto` files declare none); Go plugins use
+  `paths=source_relative`. `make rename` syncs the prefix with `go.mod`, and
+  `make generate` fails while they disagree.
 - TS generation needs `import_extension=js` (NodeNext) and maps
   `buf/validate` to `@bufbuild/protovalidate`.
 - The OpenAPI document is generated into `internal/openapi/` because

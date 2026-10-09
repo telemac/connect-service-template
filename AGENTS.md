@@ -11,6 +11,7 @@ before changing a contract.
 | Command | Does |
 |---|---|
 | `make setup` | Install TS deps from the lockfile (once after clone) |
+| `make rename` | Point buf's `go_package_prefix` at the module in `go.mod` (after `gonew`) |
 | `make update-deps` | Move buf deps to their latest versions (commit `api/buf.lock`) |
 | `make generate` | Regenerate Go, TS and OpenAPI from `api/` |
 | `make check` | lint, generate, boundary check, vet, race tests, staticcheck, TS typecheck |

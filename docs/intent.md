@@ -167,6 +167,7 @@ AGENTS.md
 CLAUDE.md                        # one line pointing to AGENTS.md
 .gitignore
 Makefile
+LICENSE                          # MIT
 .github/workflows/check.yml      # CI
 api/                             # buf.yaml, buf.gen.yaml, buf.lock, <context>/v1/*.proto
 gen/                             # generated Go — not committed
@@ -176,7 +177,7 @@ internal/<context>/              # domain: types, invariants, operations
 internal/<context>/<context>rpc/ # adapter: Connect handler, mappers, error mapping
 internal/pagetoken/              # List page tokens shared by every context
 internal/openapi/                # embeds the generated openapi.yaml (not committed)
-docs/                            # intent.md, patterns.md, gonew.md, decisions/ (ADRs)
+docs/                            # intent.md, patterns.md, decisions/ (ADRs)
 ```
 
 Tool configuration lives next to what it configures: `buf` config under
@@ -211,7 +212,8 @@ Met on 2026-10-09.
   Verified on a clean clone with an empty buf cache, and enforced by CI
   (`.github/workflows/check.yml`).
 
-Beyond v1, still open: the `gonew` preparation (`docs/gonew.md`).
+Beyond v1: the template is ready for `gonew` (ADR 0011); publishing and
+tagging `v0.1.0` remain.
 
 ## 11. Ecosystem check (2026-10-08)
 
@@ -264,5 +266,5 @@ next tag. This does not justify falling back to Huma.
   | [0008](decisions/0008-references-between-contexts.md) | Contexts reference each other by id through consumer-side interfaces |
   | [0009](decisions/0009-status-changes-through-custom-methods.md) | Status changes go through custom methods |
   | [0010](decisions/0010-cors-opt-in.md) | CORS is opt-in |
-  | [0011](decisions/0011-distribution-as-template.md) | Distribute as a gonew template, not a library (proposed) |
+  | [0011](decisions/0011-distribution-as-template.md) | Distribute as a gonew template, not a library |
   | [0012](decisions/0012-health-reflection-h2c.md) | gRPC health always on, reflection opt-in, HTTP/2 without TLS |
