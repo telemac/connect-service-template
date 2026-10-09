@@ -196,3 +196,12 @@ func (s *Store) List(ctx context.Context, filter Filter, order Order, after Curs
 	}
 	return page, Cursor{}, nil
 }
+
+// Exists reports whether a customer exists. Other contexts use it to check
+// references without depending on Customer itself.
+func (s *Store) Exists(ctx context.Context, id uuid.UUID) (bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	_, ok := s.byID[id]
+	return ok, nil
+}

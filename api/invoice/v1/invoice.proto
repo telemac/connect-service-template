@@ -1,0 +1,181 @@
+syntax = "proto3";
+
+package invoice.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/api/field_behavior.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/telemac/connectrpc-v2-poc/gen/go/invoice/v1;invoicev1";
+
+// InvoiceService manages invoices. It is the second example entity: it
+// references another entity (Customer), has a status state machine driven by
+// custom methods (AIP-136), and deliberately has no Update or Delete — an
+// issued invoice is never edited, only voided.
+service InvoiceService {
+  rpc CreateInvoice(CreateInvoiceRequest) returns (CreateInvoiceResponse) {
+    option (google.api.http) = {
+      post: "/v1/invoices"
+      body: "invoice"
+    };
+  }
+
+  rpc GetInvoice(GetInvoiceRequest) returns (GetInvoiceResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (google.api.http) = {get: "/v1/invoices/{id}"};
+  }
+
+  // ListInvoices pages through invoices in creation order.
+  rpc ListInvoices(ListInvoicesRequest) returns (ListInvoicesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (google.api.http) = {get: "/v1/invoices"};
+  }
+
+  // IssueInvoice moves a DRAFT invoice to ISSUED.
+  rpc IssueInvoice(IssueInvoiceRequest) returns (IssueInvoiceResponse) {
+    option (google.api.http) = {
+      post: "/v1/invoices/{id}:issue"
+      body: "*"
+    };
+  }
+
+  // PayInvoice moves an ISSUED invoice to PAID.
+  rpc PayInvoice(PayInvoiceRequest) returns (PayInvoiceResponse) {
+    option (google.api.http) = {
+      post: "/v1/invoices/{id}:pay"
+      body: "*"
+    };
+  }
+
+  // VoidInvoice moves a DRAFT or ISSUED invoice to VOID.
+  rpc VoidInvoice(VoidInvoiceRequest) returns (VoidInvoiceResponse) {
+    option (google.api.http) = {
+      post: "/v1/invoices/{id}:void"
+      body: "*"
+    };
+  }
+}
+
+// Invoice follows the same validation layout as Customer: field rules apply
+// when a field is set, presence is enforced by the request messages.
+message Invoice {
+  // Assigned by the server; ignored on create.
+  string id = 1 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (buf.validate.field).string.uuid = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
+  ];
+  // The billed customer. Must exist when the invoice is created.
+  string customer_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE,
+    (buf.validate.field).string.uuid = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
+  ];
+  // Amount in the currency's minor unit (cents). Integers avoid float
+  // rounding on money.
+  int64 amount_cents = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).int64.gt = 0,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
+  ];
+  // ISO 4217 code, e.g. EUR.
+  string currency = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).string.pattern = "^[A-Z]{3}$",
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
+  ];
+  // Changed only by the custom methods.
+  InvoiceStatus status = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+  google.protobuf.Timestamp create_time = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  google.protobuf.Timestamp update_time = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// InvoiceStatus is the invoice lifecycle:
+// DRAFT -> ISSUED -> PAID, and DRAFT or ISSUED -> VOID.
+enum InvoiceStatus {
+  INVOICE_STATUS_UNSPECIFIED = 0;
+  INVOICE_STATUS_DRAFT = 1;
+  INVOICE_STATUS_ISSUED = 2;
+  INVOICE_STATUS_PAID = 3;
+  INVOICE_STATUS_VOID = 4;
+}
+
+message CreateInvoiceRequest {
+  option (buf.validate.message).cel = {
+    id: "invoice.customer_id.required"
+    message: "invoice.customer_id is required"
+    expression: "this.invoice.customer_id != ''"
+  };
+  option (buf.validate.message).cel = {
+    id: "invoice.amount_cents.required"
+    message: "invoice.amount_cents is required"
+    expression: "this.invoice.amount_cents != 0"
+  };
+  option (buf.validate.message).cel = {
+    id: "invoice.currency.required"
+    message: "invoice.currency is required"
+    expression: "this.invoice.currency != ''"
+  };
+
+  Invoice invoice = 1 [(buf.validate.field).required = true];
+}
+
+message CreateInvoiceResponse {
+  Invoice invoice = 1;
+}
+
+message GetInvoiceRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetInvoiceResponse {
+  Invoice invoice = 1;
+}
+
+message ListInvoicesRequest {
+  // Maximum number of invoices to return. 0 means the server default (1000);
+  // values above 10000 are coerced to 10000.
+  int32 page_size = 1 [(buf.validate.field).int32.gte = 0];
+  // Opaque token from a previous next_page_token. Empty for the first page.
+  // Only valid with the filters it was issued for.
+  string page_token = 2;
+
+  // Filters. Empty fields are ignored; set fields are combined with AND.
+  string customer_id = 3 [
+    (buf.validate.field).string.uuid = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
+  ];
+  InvoiceStatus status = 4 [(buf.validate.field).enum.defined_only = true];
+}
+
+message ListInvoicesResponse {
+  repeated Invoice invoices = 1;
+  // Empty when there are no more pages.
+  string next_page_token = 2;
+}
+
+message IssueInvoiceRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message IssueInvoiceResponse {
+  Invoice invoice = 1;
+}
+
+message PayInvoiceRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message PayInvoiceResponse {
+  Invoice invoice = 1;
+}
+
+message VoidInvoiceRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message VoidInvoiceResponse {
+  Invoice invoice = 1;
+}

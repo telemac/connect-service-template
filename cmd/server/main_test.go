@@ -119,3 +119,29 @@ func TestOpenAPIDocumentIsServed(t *testing.T) {
 	assert.Equal(http.StatusOK, resp.StatusCode)
 	assert.Contains(string(body), "/v1/customers/{id}")
 }
+
+func TestInvoiceCustomMethodIsReachableOverREST(t *testing.T) {
+	assert := assert.New(t)
+	srv := newTestServer(t)
+	post := func(path, body string) (*http.Response, map[string]any) {
+		t.Helper()
+		resp, err := srv.Client().Post(srv.URL+path, "application/json", strings.NewReader(body))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		var out map[string]any
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&out))
+		return resp, out
+	}
+
+	_, c := post("/v1/customers", `{"name":"Ada","email":"ada@example.com"}`)
+	customerID := c["customer"].(map[string]any)["id"].(string)
+	_, inv := post("/v1/invoices", `{"customerId":"`+customerID+`","amountCents":"1250","currency":"EUR"}`)
+	invoiceID := inv["invoice"].(map[string]any)["id"].(string)
+
+	resp, issued := post("/v1/invoices/"+invoiceID+":issue", `{}`)
+	assert.Equal(http.StatusOK, resp.StatusCode)
+	assert.Equal("INVOICE_STATUS_ISSUED", issued["invoice"].(map[string]any)["status"])
+
+	resp, _ = post("/v1/invoices/"+invoiceID+":issue", `{}`)
+	assert.Equal(http.StatusBadRequest, resp.StatusCode, "FailedPrecondition maps to 400 over REST")
+}

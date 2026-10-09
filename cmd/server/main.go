@@ -21,8 +21,11 @@ import (
 	"connectrpc.com/vanguard"
 
 	"github.com/telemac/connectrpc-v2-poc/gen/go/customer/v1/customerv1connect"
+	"github.com/telemac/connectrpc-v2-poc/gen/go/invoice/v1/invoicev1connect"
 	"github.com/telemac/connectrpc-v2-poc/internal/customer"
 	"github.com/telemac/connectrpc-v2-poc/internal/customer/customerrpc"
+	"github.com/telemac/connectrpc-v2-poc/internal/invoice"
+	"github.com/telemac/connectrpc-v2-poc/internal/invoice/invoicerpc"
 	"github.com/telemac/connectrpc-v2-poc/internal/openapi"
 )
 
@@ -78,8 +81,12 @@ func run(ctx context.Context, addr string, logger *slog.Logger) error {
 // newHandler wires every context onto one connect.Server and exposes it over
 // all protocols. Add new contexts here.
 func newHandler(logger *slog.Logger) (http.Handler, error) {
+	customers := customer.NewStore()
+	invoices := invoice.NewStore(customers)
+
 	server := connect.NewServer(validate.NewServerInterceptor())
-	customerv1connect.RegisterCustomerServiceHandler(server, customerrpc.NewHandler(customer.NewStore(), logger))
+	customerv1connect.RegisterCustomerServiceHandler(server, customerrpc.NewHandler(customers, logger))
+	invoicev1connect.RegisterInvoiceServiceHandler(server, invoicerpc.NewHandler(invoices, logger))
 
 	mux := http.NewServeMux()
 	connecthttp.Mount(mux, server)
