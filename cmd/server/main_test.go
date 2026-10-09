@@ -267,6 +267,7 @@ func TestReflectionIsOptIn(t *testing.T) {
 		assert.NoError(err)
 		assert.Contains(services, protoreflect.FullName(customerv1connect.CustomerServiceName))
 		assert.Contains(services, protoreflect.FullName(invoicev1connect.InvoiceServiceName))
+		assert.Contains(services, protoreflect.FullName(grpchealth.HealthV1ServiceName))
 	})
 	t.Run("disabled by default", func(t *testing.T) {
 		assert := assert.New(t)

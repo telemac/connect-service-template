@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -130,7 +131,13 @@ func newHandler(logger *slog.Logger, opts options) (http.Handler, error) {
 		invoicev1connect.InvoiceServiceName,
 	))
 	if opts.Reflection {
-		grpcreflect.Register(server)
+		// The default namer skips methods without a protobuf schema, and
+		// grpchealth/v2 registers none, so Health would be missing from
+		// `grpcurl list`. Names come from the registered procedures instead;
+		// grpcreflect resolves the health descriptor on its own.
+		grpcreflect.Register(server, grpcreflect.WithNamer(grpcreflect.NamerFunc(func() []string {
+			return serviceNames(server)
+		})))
 	}
 
 	mux := http.NewServeMux()
@@ -146,6 +153,20 @@ func newHandler(logger *slog.Logger, opts options) (http.Handler, error) {
 		}
 	})
 	return withCORS(mux, opts.CORSOrigins), nil
+}
+
+// serviceNames lists the services registered on server, derived from their
+// "/package.Service/Method" procedures.
+func serviceNames(server *connect.Server) []string {
+	var names []string
+	for spec := range server.Specs() {
+		name, _, _ := strings.Cut(strings.TrimPrefix(spec.Procedure, "/"), "/")
+		if !slices.Contains(names, name) {
+			names = append(names, name)
+		}
+	}
+	slices.Sort(names)
+	return names
 }
 
 // withCORS lets browsers on the given origins call every protocol. Without
