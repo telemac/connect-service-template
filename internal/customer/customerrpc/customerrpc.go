@@ -13,6 +13,7 @@ import (
 	customerv1 "github.com/telemac/connectrpc-v2-poc/gen/go/customer/v1"
 	"github.com/telemac/connectrpc-v2-poc/gen/go/customer/v1/customerv1connect"
 	"github.com/telemac/connectrpc-v2-poc/internal/customer"
+	"github.com/telemac/connectrpc-v2-poc/internal/pagetoken"
 )
 
 const (
@@ -57,10 +58,11 @@ func (h *Handler) ListCustomers(ctx context.Context, req *customerv1.ListCustome
 	if err != nil {
 		return nil, err
 	}
+	params := listParams{Filter: filter, Order: order}
 	var after customer.Cursor
 	if req.GetPageToken() != "" {
-		if after, err = decodePageToken(req.GetPageToken(), filter, order); err != nil {
-			return nil, err
+		if after, err = pagetoken.Decode[listParams, customer.Cursor](req.GetPageToken(), params); err != nil {
+			return nil, pageTokenError(err)
 		}
 	}
 	size := int(req.GetPageSize())
@@ -80,11 +82,24 @@ func (h *Handler) ListCustomers(ctx context.Context, req *customerv1.ListCustome
 		resp.Customers = append(resp.Customers, toContract(c))
 	}
 	if next != (customer.Cursor{}) {
-		if resp.NextPageToken, err = encodePageToken(filter, order, next); err != nil {
+		if resp.NextPageToken, err = pagetoken.Encode(params, next); err != nil {
 			return nil, h.toConnectError(ctx, err)
 		}
 	}
 	return resp, nil
+}
+
+// listParams is what a page token is bound to.
+type listParams struct {
+	Filter customer.Filter
+	Order  customer.Order
+}
+
+func pageTokenError(err error) error {
+	if errors.Is(err, pagetoken.ErrMismatch) {
+		return connect.NewError(connect.CodeInvalidArgument, "page_token was issued for different filters or order").WithCause(err)
+	}
+	return connect.NewError(connect.CodeInvalidArgument, "invalid page_token").WithCause(err)
 }
 
 func toOrder(by customerv1.CustomerOrder, descending bool) (customer.Order, error) {
