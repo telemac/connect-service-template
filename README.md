@@ -12,6 +12,9 @@ make check
 make run
 ```
 
+Browser clients on another origin need CORS, off by default:
+`go run ./cmd/server -cors-origins=http://localhost:5173`.
+
 ```bash
 curl -X POST localhost:8080/v1/customers -d '{"name":"Ada","email":"ada@example.com"}'
 curl localhost:8080/v1/customers/<id>

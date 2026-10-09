@@ -18,9 +18,9 @@ import (
 	"github.com/telemac/connectrpc-v2-poc/gen/go/customer/v1/customerv1connect"
 )
 
-func newTestServer(t *testing.T) *httptest.Server {
+func newTestServer(t *testing.T, corsOrigins ...string) *httptest.Server {
 	t.Helper()
-	handler, err := newHandler(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	handler, err := newHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), corsOrigins)
 	require.NoError(t, err)
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
@@ -144,4 +144,62 @@ func TestInvoiceCustomMethodIsReachableOverREST(t *testing.T) {
 
 	resp, _ = post("/v1/invoices/"+invoiceID+":issue", `{}`)
 	assert.Equal(http.StatusBadRequest, resp.StatusCode, "FailedPrecondition maps to 400 over REST")
+}
+
+// Preflight header lists are sorted and lowercase, as browsers send them;
+// rs/cors rejects other forms.
+func TestCORSPreflight(t *testing.T) {
+	const allowed = "https://app.example.com"
+	tests := []struct {
+		name        string
+		corsOrigins []string
+		origin      string
+		method      string
+		path        string
+		headers     string
+		wantAllowed bool
+	}{
+		{"connect call from an allowed origin", []string{allowed}, allowed, http.MethodPost, "/customer.v1.CustomerService/GetCustomer", "connect-protocol-version,content-type", true},
+		{"rest patch from an allowed origin", []string{allowed}, allowed, http.MethodPatch, "/v1/customers/x", "content-type", true},
+		{"other origin", []string{allowed}, "https://evil.example.com", http.MethodPost, "/customer.v1.CustomerService/GetCustomer", "content-type", false},
+		{"cors disabled by default", nil, allowed, http.MethodPost, "/customer.v1.CustomerService/GetCustomer", "content-type", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			srv := newTestServer(t, tt.corsOrigins...)
+
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodOptions, srv.URL+tt.path, nil)
+			require.NoError(t, err)
+			req.Header.Set("Origin", tt.origin)
+			req.Header.Set("Access-Control-Request-Method", tt.method)
+			req.Header.Set("Access-Control-Request-Headers", tt.headers)
+			resp, err := srv.Client().Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			if tt.wantAllowed {
+				assert.Equal(tt.origin, resp.Header.Get("Access-Control-Allow-Origin"))
+				assert.Contains(resp.Header.Get("Access-Control-Allow-Methods"), tt.method)
+			} else {
+				assert.Empty(resp.Header.Get("Access-Control-Allow-Origin"))
+			}
+		})
+	}
+}
+
+func TestCORSExposesGRPCWebTrailersOnActualRequests(t *testing.T) {
+	assert := assert.New(t)
+	const allowed = "https://app.example.com"
+	srv := newTestServer(t, allowed)
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/openapi.yaml", nil)
+	require.NoError(t, err)
+	req.Header.Set("Origin", allowed)
+	resp, err := srv.Client().Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(allowed, resp.Header.Get("Access-Control-Allow-Origin"))
+	assert.Contains(resp.Header.Get("Access-Control-Expose-Headers"), "Grpc-Status")
 }

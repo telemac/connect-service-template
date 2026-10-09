@@ -62,6 +62,8 @@ Examples to copy:
   with `errors.Is` (patterns §9). Unknown errors are logged and returned as
   `Internal` with no message.
 - Mapping is explicit (`toContract`, `toChange`, ...). No reflection.
+- Browser access is off by default; enable it with
+  `-cors-origins` (patterns §10). Never widen it in code.
 - Ids are `uuid.NewV7()`; money is `int64` minor units + ISO 4217 code; time
   is `time.Time` ↔ `google.protobuf.Timestamp`.
 - Dependencies are passed through constructors and wired in `cmd/server`.

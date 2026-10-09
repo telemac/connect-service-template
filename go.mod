@@ -5,8 +5,10 @@ go 1.27.0
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.12-20260825204119-511051f7f437.2
 	connectrpc.com/connect/v2 v2.0.0
+	connectrpc.com/cors v0.1.0
 	connectrpc.com/validate v0.8.0
 	connectrpc.com/vanguard v0.4.1-0.20261007162255-080be557897f
+	github.com/rs/cors v1.11.1
 	github.com/stretchr/testify v1.12.1
 	google.golang.org/genproto/googleapis/api v0.0.0-20260825221802-da73d73af1c5
 	google.golang.org/protobuf v1.36.12

@@ -166,7 +166,17 @@ Entities that are never edited (invoices) simply have no Update.
 - REST errors use the `google.rpc.Status` shape (`{"code": 3, ...}`, numeric
   code), unlike the Connect protocol (`{"code": "invalid_argument"}`).
 
-## 10. Types
+## 10. Browser access (CORS)
+
+- Off by default. `cmd/server -cors-origins=https://app.example.com,...`
+  (or `*`) enables it for every protocol and the OpenAPI document.
+- Methods and headers come from `connectrpc.com/cors` (Connect, gRPC-Web),
+  plus `PATCH` and `DELETE` for the REST routes; gRPC-Web trailers are
+  exposed. The middleware is `github.com/rs/cors`.
+- Credentials (cookies, `Authorization`) are not allowed yet; revisit with
+  authentication.
+
+## 11. Types
 
 - Ids: stdlib `uuid.UUID`, generated with `uuid.NewV7()` (time-ordered); the
   contract carries strings validated with `string.uuid`.
@@ -175,7 +185,7 @@ Entities that are never edited (invoices) simply have no Update.
 - Time: `time.Time` in the domain, `google.protobuf.Timestamp` in the
   contract (`timestamppb.New`).
 
-## 11. Tests
+## 12. Tests
 
 - Domain: table-driven, through the exported API, fakes for consumer-side
   interfaces.
@@ -187,7 +197,7 @@ Entities that are never edited (invoices) simply have no Update.
   routes, custom methods and the OpenAPI document.
 - `assert := assert.New(t)` per test; `require` for setup that must not fail.
 
-## 12. Tooling notes
+## 13. Tooling notes
 
 - Generated code is not committed; `make generate` first, `make check` before
   committing.

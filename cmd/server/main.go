@@ -12,13 +12,16 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"connectrpc.com/connect/v2"
 	"connectrpc.com/connect/v2/connecthttp"
+	connectcors "connectrpc.com/cors"
 	"connectrpc.com/validate"
 	"connectrpc.com/vanguard"
+	"github.com/rs/cors"
 
 	"github.com/telemac/connectrpc-v2-poc/gen/go/customer/v1/customerv1connect"
 	"github.com/telemac/connectrpc-v2-poc/gen/go/invoice/v1/invoicev1connect"
@@ -31,20 +34,31 @@ import (
 
 func main() {
 	addr := flag.String("addr", ":8080", "listen address")
+	corsOrigins := flag.String("cors-origins", "", "comma-separated origins allowed to call the API from a browser (\"*\" for any); empty disables CORS")
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if err := run(ctx, *addr, logger); err != nil {
+	if err := run(ctx, *addr, splitList(*corsOrigins), logger); err != nil {
 		logger.Error("server stopped", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, addr string, logger *slog.Logger) error {
-	handler, err := newHandler(logger)
+func splitList(s string) []string {
+	var out []string
+	for item := range strings.SplitSeq(s, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+func run(ctx context.Context, addr string, corsOrigins []string, logger *slog.Logger) error {
+	handler, err := newHandler(logger, corsOrigins)
 	if err != nil {
 		return err
 	}
@@ -80,7 +94,7 @@ func run(ctx context.Context, addr string, logger *slog.Logger) error {
 
 // newHandler wires every context onto one connect.Server and exposes it over
 // all protocols. Add new contexts here.
-func newHandler(logger *slog.Logger) (http.Handler, error) {
+func newHandler(logger *slog.Logger, corsOrigins []string) (http.Handler, error) {
 	customers := customer.NewStore()
 	invoices := invoice.NewStore(customers)
 
@@ -100,5 +114,22 @@ func newHandler(logger *slog.Logger) (http.Handler, error) {
 			logger.WarnContext(r.Context(), "writing openapi document", "error", err)
 		}
 	})
-	return mux, nil
+	return withCORS(mux, corsOrigins), nil
+}
+
+// withCORS lets browsers on the given origins call every protocol. Without
+// origins it returns h unchanged: CORS stays off unless explicitly enabled.
+// Credentials are not allowed; revisit when authentication is added.
+func withCORS(h http.Handler, origins []string) http.Handler {
+	if len(origins) == 0 {
+		return h
+	}
+	return cors.New(cors.Options{
+		AllowedOrigins: origins,
+		// PATCH and DELETE are used by the REST routes Vanguard serves.
+		AllowedMethods: append(connectcors.AllowedMethods(), http.MethodPatch, http.MethodDelete),
+		AllowedHeaders: connectcors.AllowedHeaders(),
+		ExposedHeaders: connectcors.ExposedHeaders(),
+		MaxAge:         7200,
+	}).Handler(h)
 }
