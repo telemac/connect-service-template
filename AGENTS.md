@@ -47,6 +47,9 @@ Examples to copy:
 ## Rules
 
 - Never edit generated code. Change the `.proto`, then `make generate`.
+- Conventions are decisions: `docs/decisions/` (indexed in `docs/intent.md`
+  §13) says why each exists. Changing one means a new ADR (next number,
+  superseding the old one) and an update of `docs/patterns.md`.
 - Domain packages import no `connectrpc.com/...`, no `gen/go/...`, no
   `net/http`, and no other domain package; they reference other contexts
   through a small interface they declare. `make boundaries` checks imports.

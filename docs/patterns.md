@@ -1,7 +1,8 @@
 # Patterns
 
 The detailed conventions behind `AGENTS.md`. Each section names the example
-that implements it; read the code next to the rule.
+that implements it; read the code next to the rule. Why each convention
+exists is in `docs/decisions/` (ADRs 0001–0011).
 
 - `customer` — standard methods: Create, Get, List (filters, sort, pagination),
   partial Update, Delete.

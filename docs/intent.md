@@ -1,6 +1,8 @@
 # Intent
 
 Status: accepted (2026-10-08) — option A, proto-first with Connect v2 (see [Decision](#6-decision)).
+v1 definition of done met on 2026-10-09 (see [§10](#10-definition-of-done-v1)).
+Later decisions are recorded as ADRs in [`decisions/`](decisions/) (see [§13](#13-references)).
 
 ## 1. Purpose
 
@@ -162,42 +164,55 @@ go.mod
 go.sum
 README.md
 AGENTS.md
-CLAUDE.md            # one line pointing to AGENTS.md
+CLAUDE.md                        # one line pointing to AGENTS.md
 .gitignore
 Makefile
-api/                 # buf.yaml, buf.gen.yaml, buf.lock, <package>/v1/*.proto
-gen/                 # generated Go — not committed
-ts/                  # self-contained TS client: package.json, tsconfig.json, gen/ (not committed)
-cmd/server/          # entrypoint and wiring
-internal/<context>/  # domain types, service, mappers, handler
-internal/openapi/     # embeds the generated openapi.yaml (not committed)
-docs/                # intent.md, decisions/ (ADRs)
+.github/workflows/check.yml      # CI
+api/                             # buf.yaml, buf.gen.yaml, buf.lock, <context>/v1/*.proto
+gen/                             # generated Go — not committed
+ts/                              # self-contained TS client: package.json, tsconfig.json, gen/ (not committed)
+cmd/server/                      # entrypoint and wiring
+internal/<context>/              # domain: types, invariants, operations
+internal/<context>/<context>rpc/ # adapter: Connect handler, mappers, error mapping
+internal/pagetoken/              # List page tokens shared by every context
+internal/openapi/                # embeds the generated openapi.yaml (not committed)
+docs/                            # intent.md, patterns.md, gonew.md, decisions/ (ADRs)
 ```
 
 Tool configuration lives next to what it configures: `buf` config under
 `api/`, npm manifests under `ts/`.
 
 Generated code is never committed. `make generate` must run before building;
-CI does the same.
+CI does the same (ADR 0002).
 
 ## 9. AI-friendliness requirements
 
 - `AGENTS.md` at the root is the single entry point for agents. `CLAUDE.md`,
-  if present, only points to it.
-- Step-by-step recipes: *add an entity*, *add an RPC*, *add a validation rule*.
-- One canonical example entity implemented end to end, to be copied.
+  if present, only points to it. Detailed conventions live in
+  `docs/patterns.md`.
+- Step-by-step recipes in `AGENTS.md`: *add an entity*, *add an RPC*.
+  Validation rules are covered by `docs/patterns.md` §4.
+- Two example entities implemented end to end, to be copied: `customer`
+  (standard methods) and `invoice` (reference, lifecycle, custom methods).
 - One command regenerates code; one command runs every check.
 - Decisions are recorded as short ADRs in `docs/decisions/`.
 - Conventions are enforced by checks, not only by documentation.
 
 ## 10. Definition of done (v1)
 
-- One example entity exposed through Connect (JSON and binary).
-- Called from a Go test through `connectinprocess`, without a network listener.
-- Reachable as REST, with a served OpenAPI document.
-- Invalid input returns a structured validation error.
-- `make check` passes from a fresh clone: `buf lint`, generate, `go vet ./...`,
-  `go test ./...`, TS typecheck.
+Met on 2026-10-09.
+
+- [x] One example entity exposed through Connect (JSON and binary).
+- [x] Called from a Go test through `connectinprocess`, without a network listener.
+- [x] Reachable as REST, with a served OpenAPI document.
+- [x] Invalid input returns a structured validation error.
+- [x] `make check` passes from a fresh clone: `buf lint`, generate, boundary
+  check, `go vet ./...`, `go test -race ./...`, staticcheck, TS typecheck.
+  Verified on a clean clone with an empty buf cache, and enforced by CI
+  (`.github/workflows/check.yml`).
+
+Beyond v1, still open: health check and gRPC reflection, a TypeScript client
+test against the server, and the `gonew` preparation (`docs/gonew.md`).
 
 ## 11. Ecosystem check (2026-10-08)
 
@@ -210,6 +225,8 @@ Connect v2.0.0 was released on 2026-10-07. Status of the pieces option A needs:
 | OpenAPI generator (alt) | `github.com/google/gnostic` | Last release v0.7.0 (2023). | Rejected — stale. |
 | Validation interceptor | `connectrpc.com/validate` | v0.8.0 (2026-10-07), depends on `connect/v2 v2.0.0` and `protovalidate v1.4.0`. | Low |
 | TS client | Connect-ES | Wire protocol unchanged; independent of the Go major version. | Low |
+| CORS | `connectrpc.com/cors` v0.1.0 + `github.com/rs/cors` v1.11.1 | Header and method lists only; the wire protocol is unchanged in v2. Checked 2026-10-09. | Low |
+| Migration check | `connect-go-v2-migrate` v1.0.0 | Dry run on 2026-10-09: no rewrites; its only warning flags any Vanguard import and is already satisfied by `vanguard.Mount`. | — |
 
 Conclusion: option A is viable with Connect v2. The only gap is that Vanguard
 has no v2 release yet, so the boilerplate pins a `main` commit and tracks the
@@ -223,9 +240,28 @@ next tag. This does not justify falling back to Huma.
 | Minimum Go version | 1.27 | Standard `uuid` package (v7 IDs), `errors.AsType`; Vanguard `main` already requires 1.26. |
 | `Makefile` or `justfile` | `Makefile` | No extra tool to install. |
 | TS generation location | Self-contained `ts/` | Keeps npm files out of the root. |
+| Dependency installation | Lockfiles only (`npm ci`, `buf.lock`) | Reproducible clones and CI (ADR 0002). |
+| staticcheck | `go run …@version` pinned in the `Makefile` | Same version locally and in CI, no `go.mod` entry. |
+| Breaking-change detection | `make breaking` against the pull request base in CI | The reason to choose proto (§6) only holds if it is checked. |
 
 ## 13. References
 
 - Global OKF workspace (`~/.okf`), `go` bundle — principles applied in §7.
 - Ecosystem facts in §11 were checked directly against the upstream
-  repositories on 2026-10-08.
+  repositories on 2026-10-08 and 2026-10-09.
+- `docs/patterns.md` — the conventions in detail.
+- Decisions (`docs/decisions/`):
+
+  | ADR | Decision |
+  |---|---|
+  | [0001](decisions/0001-source-of-truth.md) | Protobuf is the source of truth for entities |
+  | [0002](decisions/0002-generated-code-and-dependencies.md) | Generated code is not committed; dependencies come from lockfiles |
+  | [0003](decisions/0003-validation-layers.md) | Validation is split between entity, request and domain |
+  | [0004](decisions/0004-response-messages.md) | Every RPC has its own response message |
+  | [0005](decisions/0005-partial-updates.md) | Updates are AIP-134 partial updates |
+  | [0006](decisions/0006-list-pagination.md) | Lists use AIP-158 keyset pagination with bound tokens |
+  | [0007](decisions/0007-typed-filters-and-sort.md) | Filters and sorting are typed request fields |
+  | [0008](decisions/0008-references-between-contexts.md) | Contexts reference each other by id through consumer-side interfaces |
+  | [0009](decisions/0009-status-changes-through-custom-methods.md) | Status changes go through custom methods |
+  | [0010](decisions/0010-cors-opt-in.md) | CORS is opt-in |
+  | [0011](decisions/0011-distribution-as-template.md) | Distribute as a gonew template, not a library (proposed) |
