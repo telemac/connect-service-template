@@ -211,8 +211,8 @@ Met on 2026-10-09.
   Verified on a clean clone with an empty buf cache, and enforced by CI
   (`.github/workflows/check.yml`).
 
-Beyond v1, still open: health check and gRPC reflection, a TypeScript client
-test against the server, and the `gonew` preparation (`docs/gonew.md`).
+Beyond v1, still open: a TypeScript client test against the server, and the
+`gonew` preparation (`docs/gonew.md`).
 
 ## 11. Ecosystem check (2026-10-08)
 
@@ -226,6 +226,7 @@ Connect v2.0.0 was released on 2026-10-07. Status of the pieces option A needs:
 | Validation interceptor | `connectrpc.com/validate` | v0.8.0 (2026-10-07), depends on `connect/v2 v2.0.0` and `protovalidate v1.4.0`. | Low |
 | TS client | Connect-ES | Wire protocol unchanged; independent of the Go major version. | Low |
 | CORS | `connectrpc.com/cors` v0.1.0 + `github.com/rs/cors` v1.11.1 | Header and method lists only; the wire protocol is unchanged in v2. Checked 2026-10-09. | Low |
+| Health, reflection | `connectrpc.com/grpchealth/v2`, `connectrpc.com/grpcreflect/v2` v2.0.0 | Released 2026-10-07 for `connect/v2`. Checked 2026-10-09 with `grpcurl`. | Low |
 | Migration check | `connect-go-v2-migrate` v1.0.0 | Dry run on 2026-10-09: no rewrites; its only warning flags any Vanguard import and is already satisfied by `vanguard.Mount`. | — |
 
 Conclusion: option A is viable with Connect v2. The only gap is that Vanguard
@@ -265,3 +266,4 @@ next tag. This does not justify falling back to Huma.
   | [0009](decisions/0009-status-changes-through-custom-methods.md) | Status changes go through custom methods |
   | [0010](decisions/0010-cors-opt-in.md) | CORS is opt-in |
   | [0011](decisions/0011-distribution-as-template.md) | Distribute as a gonew template, not a library (proposed) |
+  | [0012](decisions/0012-health-reflection-h2c.md) | gRPC health always on, reflection opt-in, HTTP/2 without TLS |

@@ -45,7 +45,7 @@ check: lint generate boundaries
 	cd ts && npm run typecheck
 
 run: generate
-	go run ./cmd/server
+	go run ./cmd/server -reflection
 
 clean:
 	rm -rf gen ts/gen ts/node_modules internal/openapi/openapi.yaml

@@ -19,6 +19,8 @@ import (
 	"connectrpc.com/connect/v2"
 	"connectrpc.com/connect/v2/connecthttp"
 	connectcors "connectrpc.com/cors"
+	"connectrpc.com/grpchealth/v2"
+	"connectrpc.com/grpcreflect/v2"
 	"connectrpc.com/validate"
 	"connectrpc.com/vanguard"
 	"github.com/rs/cors"
@@ -35,13 +37,15 @@ import (
 func main() {
 	addr := flag.String("addr", ":8080", "listen address")
 	corsOrigins := flag.String("cors-origins", "", "comma-separated origins allowed to call the API from a browser (\"*\" for any); empty disables CORS")
+	reflection := flag.Bool("reflection", false, "serve gRPC server reflection (describes every compiled-in protobuf type; keep off on public APIs)")
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if err := run(ctx, *addr, splitList(*corsOrigins), logger); err != nil {
+	opts := options{CORSOrigins: splitList(*corsOrigins), Reflection: *reflection}
+	if err := run(ctx, *addr, opts, logger); err != nil {
 		logger.Error("server stopped", "error", err)
 		os.Exit(1)
 	}
@@ -57,14 +61,31 @@ func splitList(s string) []string {
 	return out
 }
 
-func run(ctx context.Context, addr string, corsOrigins []string, logger *slog.Logger) error {
-	handler, err := newHandler(logger, corsOrigins)
+// options are the server settings that come from flags.
+type options struct {
+	CORSOrigins []string
+	Reflection  bool
+}
+
+// protocols enables HTTP/1.1 and unencrypted HTTP/2 (h2c). gRPC clients and
+// the bidirectional reflection stream need HTTP/2; TLS is expected to be
+// terminated in front of the service.
+func protocols() *http.Protocols {
+	var p http.Protocols
+	p.SetHTTP1(true)
+	p.SetUnencryptedHTTP2(true)
+	return &p
+}
+
+func run(ctx context.Context, addr string, opts options, logger *slog.Logger) error {
+	handler, err := newHandler(logger, opts)
 	if err != nil {
 		return err
 	}
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           handler,
+		Protocols:         protocols(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -93,14 +114,24 @@ func run(ctx context.Context, addr string, corsOrigins []string, logger *slog.Lo
 }
 
 // newHandler wires every context onto one connect.Server and exposes it over
-// all protocols. Add new contexts here.
-func newHandler(logger *slog.Logger, corsOrigins []string) (http.Handler, error) {
+// all protocols. Add new contexts here, and their service name to the health
+// checker.
+func newHandler(logger *slog.Logger, opts options) (http.Handler, error) {
 	customers := customer.NewStore()
 	invoices := invoice.NewStore(customers)
 
 	server := connect.NewServer(validate.NewServerInterceptor())
 	customerv1connect.RegisterCustomerServiceHandler(server, customerrpc.NewHandler(customers, logger))
 	invoicev1connect.RegisterInvoiceServiceHandler(server, invoicerpc.NewHandler(invoices, logger))
+
+	// Standard gRPC health checks: the overall server ("") and each service.
+	grpchealth.Register(server, grpchealth.NewStaticChecker(
+		customerv1connect.CustomerServiceName,
+		invoicev1connect.InvoiceServiceName,
+	))
+	if opts.Reflection {
+		grpcreflect.Register(server)
+	}
 
 	mux := http.NewServeMux()
 	connecthttp.Mount(mux, server)
@@ -114,7 +145,7 @@ func newHandler(logger *slog.Logger, corsOrigins []string) (http.Handler, error)
 			logger.WarnContext(r.Context(), "writing openapi document", "error", err)
 		}
 	})
-	return withCORS(mux, corsOrigins), nil
+	return withCORS(mux, opts.CORSOrigins), nil
 }
 
 // withCORS lets browsers on the given origins call every protocol. Without

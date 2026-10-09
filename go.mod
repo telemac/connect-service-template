@@ -6,6 +6,8 @@ require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.12-20260825204119-511051f7f437.2
 	connectrpc.com/connect/v2 v2.0.0
 	connectrpc.com/cors v0.1.0
+	connectrpc.com/grpchealth/v2 v2.0.0
+	connectrpc.com/grpcreflect/v2 v2.0.0
 	connectrpc.com/validate v0.8.0
 	connectrpc.com/vanguard v0.4.1-0.20261007162255-080be557897f
 	github.com/rs/cors v1.11.1

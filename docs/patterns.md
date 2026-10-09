@@ -2,7 +2,7 @@
 
 The detailed conventions behind `AGENTS.md`. Each section names the example
 that implements it; read the code next to the rule. Why each convention
-exists is in `docs/decisions/` (ADRs 0001–0011).
+exists is in `docs/decisions/` (ADRs 0001–0012).
 
 - `customer` — standard methods: Create, Get, List (filters, sort, pagination),
   partial Update, Delete.
@@ -167,7 +167,7 @@ Entities that are never edited (invoices) simply have no Update.
 - REST errors use the `google.rpc.Status` shape (`{"code": 3, ...}`, numeric
   code), unlike the Connect protocol (`{"code": "invalid_argument"}`).
 
-## 10. Browser access (CORS)
+## 10. Browser access and operations
 
 - Off by default. `cmd/server -cors-origins=https://app.example.com,...`
   (or `*`) enables it for every protocol and the OpenAPI document.
@@ -176,6 +176,16 @@ Entities that are never edited (invoices) simply have no Update.
   exposed. The middleware is `github.com/rs/cors`.
 - Credentials (cookies, `Authorization`) are not allowed yet; revisit with
   authentication.
+
+### Health, reflection, HTTP/2
+
+- The server speaks HTTP/1.1 and HTTP/2 without TLS (h2c), so plaintext gRPC
+  clients work; terminate TLS in front of it.
+- gRPC health (`grpc.health.v1.Health`) is always on: overall (`""`) and per
+  service. Add each new service name to the checker in `newHandler`.
+- gRPC reflection is off unless `-reflection` (on in `make run`); it exposes
+  every compiled-in type. `grpcurl -plaintext localhost:8080 list` then
+  describes the API.
 
 ## 11. Types
 

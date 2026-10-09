@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -11,25 +12,40 @@ import (
 
 	"connectrpc.com/connect/v2"
 	"connectrpc.com/connect/v2/connecthttp"
+	"connectrpc.com/grpchealth/v2"
+	"connectrpc.com/grpcreflect/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	customerv1 "github.com/telemac/connectrpc-v2-poc/gen/go/customer/v1"
 	"github.com/telemac/connectrpc-v2-poc/gen/go/customer/v1/customerv1connect"
+	"github.com/telemac/connectrpc-v2-poc/gen/go/invoice/v1/invoicev1connect"
 )
 
-func newTestServer(t *testing.T, corsOrigins ...string) *httptest.Server {
+// newTestServer serves newHandler with the same protocols as run, so gRPC
+// over h2c works as in production.
+func newTestServer(t *testing.T, opts options) *httptest.Server {
 	t.Helper()
-	handler, err := newHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), corsOrigins)
+	handler, err := newHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), opts)
 	require.NoError(t, err)
-	srv := httptest.NewServer(handler)
+	srv := httptest.NewUnstartedServer(handler)
+	srv.Config.Protocols = protocols()
+	srv.Start()
 	t.Cleanup(srv.Close)
 	return srv
 }
 
+// h2cClient speaks HTTP/2 without TLS, like a gRPC client on plaintext.
+func h2cClient() *http.Client {
+	var p http.Protocols
+	p.SetUnencryptedHTTP2(true)
+	return &http.Client{Transport: &http.Transport{Protocols: &p}}
+}
+
 func TestCustomerIsReachableOverConnectAndREST(t *testing.T) {
 	assert := assert.New(t)
-	srv := newTestServer(t)
+	srv := newTestServer(t, options{})
 
 	// Connect protocol, binary proto codec.
 	client := customerv1connect.NewCustomerServiceClient(connect.NewClient(connecthttp.NewTransport(srv.Client(), srv.URL)))
@@ -99,7 +115,7 @@ func TestCustomerIsReachableOverConnectAndREST(t *testing.T) {
 
 func TestRESTRejectsInvalidInput(t *testing.T) {
 	assert := assert.New(t)
-	srv := newTestServer(t)
+	srv := newTestServer(t, options{})
 
 	resp, err := srv.Client().Post(srv.URL+"/v1/customers", "application/json", strings.NewReader(`{"name":"","email":"x"}`))
 	require.NoError(t, err)
@@ -109,7 +125,7 @@ func TestRESTRejectsInvalidInput(t *testing.T) {
 
 func TestOpenAPIDocumentIsServed(t *testing.T) {
 	assert := assert.New(t)
-	srv := newTestServer(t)
+	srv := newTestServer(t, options{})
 
 	resp, err := srv.Client().Get(srv.URL + "/openapi.yaml")
 	require.NoError(t, err)
@@ -122,7 +138,7 @@ func TestOpenAPIDocumentIsServed(t *testing.T) {
 
 func TestInvoiceCustomMethodIsReachableOverREST(t *testing.T) {
 	assert := assert.New(t)
-	srv := newTestServer(t)
+	srv := newTestServer(t, options{})
 	post := func(path, body string) (*http.Response, map[string]any) {
 		t.Helper()
 		resp, err := srv.Client().Post(srv.URL+path, "application/json", strings.NewReader(body))
@@ -167,7 +183,7 @@ func TestCORSPreflight(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert := assert.New(t)
-			srv := newTestServer(t, tt.corsOrigins...)
+			srv := newTestServer(t, options{CORSOrigins: tt.corsOrigins})
 
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodOptions, srv.URL+tt.path, nil)
 			require.NoError(t, err)
@@ -191,7 +207,7 @@ func TestCORSPreflight(t *testing.T) {
 func TestCORSExposesGRPCWebTrailersOnActualRequests(t *testing.T) {
 	assert := assert.New(t)
 	const allowed = "https://app.example.com"
-	srv := newTestServer(t, allowed)
+	srv := newTestServer(t, options{CORSOrigins: []string{allowed}})
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/openapi.yaml", nil)
 	require.NoError(t, err)
@@ -202,4 +218,62 @@ func TestCORSExposesGRPCWebTrailersOnActualRequests(t *testing.T) {
 
 	assert.Equal(allowed, resp.Header.Get("Access-Control-Allow-Origin"))
 	assert.Contains(resp.Header.Get("Access-Control-Expose-Headers"), "Grpc-Status")
+}
+
+func TestHealthOverGRPC(t *testing.T) {
+	srv := newTestServer(t, options{})
+	health := grpchealth.NewClient(connect.NewClient(connecthttp.NewTransport(h2cClient(), srv.URL, connecthttp.WithGRPC())))
+
+	tests := []struct {
+		name    string
+		service string
+		want    grpchealth.Status
+		code    connect.Code
+	}{
+		{"overall server", "", grpchealth.StatusServing, 0},
+		{"registered service", customerv1connect.CustomerServiceName, grpchealth.StatusServing, 0},
+		{"unknown service", "nope.v1.NopeService", 0, connect.CodeNotFound},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			resp, err := health.Check(t.Context(), &grpchealth.CheckRequest{Service: tt.service})
+			if tt.code != 0 {
+				connectErr, ok := errors.AsType[*connect.Error](err)
+				if assert.True(ok, "want a *connect.Error, got %v", err) {
+					assert.Equal(tt.code, connectErr.Code())
+				}
+				return
+			}
+			assert.NoError(err)
+			assert.Equal(tt.want, resp.Status)
+		})
+	}
+}
+
+func TestReflectionIsOptIn(t *testing.T) {
+	list := func(t *testing.T, opts options) ([]protoreflect.FullName, error) {
+		t.Helper()
+		srv := newTestServer(t, opts)
+		reflect := grpcreflect.NewClient(connect.NewClient(connecthttp.NewTransport(h2cClient(), srv.URL, connecthttp.WithGRPC())))
+		stream := reflect.NewStream(t.Context())
+		defer stream.Close()
+		return stream.ListServices()
+	}
+
+	t.Run("enabled lists the API services", func(t *testing.T) {
+		assert := assert.New(t)
+		services, err := list(t, options{Reflection: true})
+		assert.NoError(err)
+		assert.Contains(services, protoreflect.FullName(customerv1connect.CustomerServiceName))
+		assert.Contains(services, protoreflect.FullName(invoicev1connect.InvoiceServiceName))
+	})
+	t.Run("disabled by default", func(t *testing.T) {
+		assert := assert.New(t)
+		_, err := list(t, options{})
+		connectErr, ok := errors.AsType[*connect.Error](err)
+		if assert.True(ok, "want a *connect.Error, got %v", err) {
+			assert.Equal(connect.CodeUnimplemented, connectErr.Code())
+		}
+	})
 }

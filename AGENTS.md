@@ -15,7 +15,7 @@ before changing a contract.
 | `make generate` | Regenerate Go, TS and OpenAPI from `api/` |
 | `make check` | lint, generate, boundary check, vet, race tests, staticcheck, TS typecheck |
 | `make breaking` | Fail on incompatible `api/` changes since `main` (`BREAKING_AGAINST=<ref>`) |
-| `make run` | Start the server on `:8080` |
+| `make run` | Start the server on `:8080`, with gRPC reflection |
 
 Generated code (`gen/`, `ts/gen/`, `internal/openapi/openapi.yaml`) is not
 committed. Run `make generate` before building. CI
@@ -66,7 +66,8 @@ Examples to copy:
   `Internal` with no message.
 - Mapping is explicit (`toContract`, `toChange`, ...). No reflection.
 - Browser access is off by default; enable it with
-  `-cors-origins` (patterns §10). Never widen it in code.
+  `-cors-origins` (patterns §10). Never widen it in code. Same for gRPC
+  reflection (`-reflection`); health checks are always on.
 - Ids are `uuid.NewV7()`; money is `int64` minor units + ISO 4217 code; time
   is `time.Time` ↔ `google.protobuf.Timestamp`.
 - Dependencies are passed through constructors and wired in `cmd/server`.
@@ -89,8 +90,9 @@ Examples to copy:
    operations, `Filter`. Test it.
 5. Create `internal/<context>/<context>rpc/`: handler, mappers, error mapping,
    list parameters bound to page tokens. Test it with `connectinprocess`.
-6. Construct the store and register the handler in `newHandler` in
-   `cmd/server/main.go`; add a REST case to `cmd/server/main_test.go`.
+6. Construct the store, register the handler and add the service name to the
+   health checker in `newHandler` (`cmd/server/main.go`); add a REST case to
+   `cmd/server/main_test.go`.
 7. `make check`.
 
 ## Recipe: add an RPC

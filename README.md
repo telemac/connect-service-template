@@ -15,6 +15,14 @@ make run
 Browser clients on another origin need CORS, off by default:
 `go run ./cmd/server -cors-origins=http://localhost:5173`.
 
+gRPC tools work in plaintext (HTTP/2 without TLS); `make run` enables
+reflection:
+
+```bash
+grpcurl -plaintext localhost:8080 list
+grpcurl -plaintext localhost:8080 grpc.health.v1.Health/Check
+```
+
 ```bash
 curl -X POST localhost:8080/v1/customers -d '{"name":"Ada","email":"ada@example.com"}'
 curl localhost:8080/v1/customers/<id>
