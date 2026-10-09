@@ -9,7 +9,7 @@ managed:
   enabled: true
   override:
     - file_option: go_package_prefix
-      value: github.com/telemac/connectrpc-v2-poc/gen/go
+      value: github.com/telemac/connect-service-template/gen/go
   disable:
     # Dependencies keep the go_package they were published with.
     - module: buf.build/bufbuild/protovalidate

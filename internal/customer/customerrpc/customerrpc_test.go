@@ -14,10 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
-	customerv1 "github.com/telemac/connectrpc-v2-poc/gen/go/customer/v1"
-	"github.com/telemac/connectrpc-v2-poc/gen/go/customer/v1/customerv1connect"
-	"github.com/telemac/connectrpc-v2-poc/internal/customer"
-	"github.com/telemac/connectrpc-v2-poc/internal/customer/customerrpc"
+	customerv1 "github.com/telemac/connect-service-template/gen/go/customer/v1"
+	"github.com/telemac/connect-service-template/gen/go/customer/v1/customerv1connect"
+	"github.com/telemac/connect-service-template/internal/customer"
+	"github.com/telemac/connect-service-template/internal/customer/customerrpc"
 )
 
 func newClient(t *testing.T) customerv1connect.CustomerServiceClient {

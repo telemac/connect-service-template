@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	invoicev1 "github.com/telemac/connectrpc-v2-poc/gen/go/invoice/v1"
-	"github.com/telemac/connectrpc-v2-poc/gen/go/invoice/v1/invoicev1connect"
-	"github.com/telemac/connectrpc-v2-poc/internal/customer"
-	"github.com/telemac/connectrpc-v2-poc/internal/invoice"
-	"github.com/telemac/connectrpc-v2-poc/internal/invoice/invoicerpc"
+	invoicev1 "github.com/telemac/connect-service-template/gen/go/invoice/v1"
+	"github.com/telemac/connect-service-template/gen/go/invoice/v1/invoicev1connect"
+	"github.com/telemac/connect-service-template/internal/customer"
+	"github.com/telemac/connect-service-template/internal/invoice"
+	"github.com/telemac/connect-service-template/internal/invoice/invoicerpc"
 )
 
 // newClient wires the real customer store, as cmd/server does, and returns

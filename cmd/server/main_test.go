@@ -18,9 +18,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
-	customerv1 "github.com/telemac/connectrpc-v2-poc/gen/go/customer/v1"
-	"github.com/telemac/connectrpc-v2-poc/gen/go/customer/v1/customerv1connect"
-	"github.com/telemac/connectrpc-v2-poc/gen/go/invoice/v1/invoicev1connect"
+	customerv1 "github.com/telemac/connect-service-template/gen/go/customer/v1"
+	"github.com/telemac/connect-service-template/gen/go/customer/v1/customerv1connect"
+	"github.com/telemac/connect-service-template/gen/go/invoice/v1/invoicev1connect"
 )
 
 // newTestServer serves newHandler with the same protocols as run, so gRPC

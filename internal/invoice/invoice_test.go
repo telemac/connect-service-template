@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/telemac/connectrpc-v2-poc/internal/invoice"
+	"github.com/telemac/connect-service-template/internal/invoice"
 )
 
 // customers is a fake invoice.Customers: every ID in the set exists.

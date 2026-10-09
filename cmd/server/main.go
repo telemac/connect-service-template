@@ -26,13 +26,13 @@ import (
 	"connectrpc.com/vanguard"
 	"github.com/rs/cors"
 
-	"github.com/telemac/connectrpc-v2-poc/gen/go/customer/v1/customerv1connect"
-	"github.com/telemac/connectrpc-v2-poc/gen/go/invoice/v1/invoicev1connect"
-	"github.com/telemac/connectrpc-v2-poc/internal/customer"
-	"github.com/telemac/connectrpc-v2-poc/internal/customer/customerrpc"
-	"github.com/telemac/connectrpc-v2-poc/internal/invoice"
-	"github.com/telemac/connectrpc-v2-poc/internal/invoice/invoicerpc"
-	"github.com/telemac/connectrpc-v2-poc/internal/openapi"
+	"github.com/telemac/connect-service-template/gen/go/customer/v1/customerv1connect"
+	"github.com/telemac/connect-service-template/gen/go/invoice/v1/invoicev1connect"
+	"github.com/telemac/connect-service-template/internal/customer"
+	"github.com/telemac/connect-service-template/internal/customer/customerrpc"
+	"github.com/telemac/connect-service-template/internal/invoice"
+	"github.com/telemac/connect-service-template/internal/invoice/invoicerpc"
+	"github.com/telemac/connect-service-template/internal/openapi"
 )
 
 func main() {

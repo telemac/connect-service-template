@@ -10,10 +10,10 @@ import (
 
 	"connectrpc.com/connect/v2"
 
-	customerv1 "github.com/telemac/connectrpc-v2-poc/gen/go/customer/v1"
-	"github.com/telemac/connectrpc-v2-poc/gen/go/customer/v1/customerv1connect"
-	"github.com/telemac/connectrpc-v2-poc/internal/customer"
-	"github.com/telemac/connectrpc-v2-poc/internal/pagetoken"
+	customerv1 "github.com/telemac/connect-service-template/gen/go/customer/v1"
+	"github.com/telemac/connect-service-template/gen/go/customer/v1/customerv1connect"
+	"github.com/telemac/connect-service-template/internal/customer"
+	"github.com/telemac/connect-service-template/internal/pagetoken"
 )
 
 const (

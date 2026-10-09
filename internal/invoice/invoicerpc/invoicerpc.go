@@ -11,10 +11,10 @@ import (
 	"connectrpc.com/connect/v2"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	invoicev1 "github.com/telemac/connectrpc-v2-poc/gen/go/invoice/v1"
-	"github.com/telemac/connectrpc-v2-poc/gen/go/invoice/v1/invoicev1connect"
-	"github.com/telemac/connectrpc-v2-poc/internal/invoice"
-	"github.com/telemac/connectrpc-v2-poc/internal/pagetoken"
+	invoicev1 "github.com/telemac/connect-service-template/gen/go/invoice/v1"
+	"github.com/telemac/connect-service-template/gen/go/invoice/v1/invoicev1connect"
+	"github.com/telemac/connect-service-template/internal/invoice"
+	"github.com/telemac/connect-service-template/internal/pagetoken"
 )
 
 const (

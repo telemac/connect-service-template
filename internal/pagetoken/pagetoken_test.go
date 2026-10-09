@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/telemac/connectrpc-v2-poc/internal/pagetoken"
+	"github.com/telemac/connect-service-template/internal/pagetoken"
 )
 
 type params struct {

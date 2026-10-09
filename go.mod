@@ -1,4 +1,4 @@
-module github.com/telemac/connectrpc-v2-poc
+module github.com/telemac/connect-service-template
 
 go 1.27.0
 
